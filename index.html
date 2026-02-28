@@ -1,0 +1,936 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>英語点字（UEB）音声学習</title>
+  <style>
+    :root{
+      --bg:#fff;
+      --btn:#8fd3ff;
+      --btnActive:#5bbcff;
+      --text:#0b0b0b;
+      --hint:#333;
+      --radius:16px;
+    }
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--text);
+      font-family:system-ui,-apple-system,"Hiragino Sans","Noto Sans JP","Segoe UI",Roboto,Arial,sans-serif;}
+    .wrap{max-width:820px;margin:0 auto;padding:10px 10px calc(18px + env(safe-area-inset-bottom));}
+    .title{font-size:18px;font-weight:800;margin:6px 2px 10px;}
+    .hint{font-size:14px;line-height:1.55;color:var(--hint);margin:0 2px 12px;}
+    .btn{
+      width:100%;
+      display:block;border:0;
+      padding:18px 14px;margin:10px 0;
+      background:var(--btn);border-radius:var(--radius);
+      font-size:20px;font-weight:800;text-align:left;color:#002233;
+      box-shadow:0 2px 8px rgba(0,0,0,.08);
+      touch-action:manipulation;
+    }
+    .btn:active{transform:translateY(1px);}
+    .btn.selected{outline:4px solid rgba(0,0,0,.18);background:var(--btnActive);}
+    .sr{position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden;}
+    .status{margin-top:10px;padding:10px 12px;border-radius:12px;background:#f3f6ff;font-size:14px;line-height:1.5;}
+  </style>
+</head>
+
+<body>
+<div class="wrap" id="app">
+  <div class="title">英語点字（UEB）を音声で覚える（中３向け）</div>
+  <p class="hint">
+    使い方：ボタンを押す → すぐ説明開始。<br>
+    説明中に同じボタン → 停止。別のボタン → その説明に切替。ボタン以外 → 停止して選択解除。
+  </p>
+
+  <div class="sr" aria-live="polite" id="ariaLive">準備完了</div>
+
+  <!-- 19 buttons -->
+  <button class="btn" data-id="1">1 英語点字とは</button>
+  <button class="btn" data-id="2">2 グレード１とグレード２</button>
+  <button class="btn" data-id="3">3 アルファベットと大文字を示す記号</button>
+  <button class="btn" data-id="4">4 数字</button>
+  <button class="btn" data-id="5">5 句読符</button>
+
+  <button class="btn" data-id="6">6 しゅくやく</button>
+  <button class="btn" data-id="6-1">6-1 一マスで語全体を表すしゅくやく</button>
+  <button class="btn" data-id="6-2">6-2 二マスで１語全体又は部分を表すしゅくやく</button>
+  <button class="btn" data-id="6-3">6-3 一マス又は二マスで語の部分を表すしゅくやく</button>
+  <button class="btn" data-id="6-4">6-4 たんけい語１</button>
+  <button class="btn" data-id="6-5">6-5 たんけい語２</button>
+  <button class="btn" data-id="6-6">6-6 下がり記号で語全体を表すしゅくやく</button>
+  <button class="btn" data-id="6-7">6-7 下がり記号で語の部分を表すしゅくやく</button>
+
+  <button class="btn" data-id="7">7 書体を示す記号</button>
+  <button class="btn" data-id="8">8 貨幣単位などの記号</button>
+  <button class="btn" data-id="9">9 修飾符</button>
+  <button class="btn" data-id="10">10 外字符と外国語引用符</button>
+  <button class="btn" data-id="11">11 発音記号</button>
+  <button class="btn" data-id="12">12 英語点字の動向と参考文献</button>
+
+  <div class="status" id="status">状態：待機中</div>
+</div>
+
+<script>
+/* =========================================================
+  パラメータ宣言部（調整はここ中心）
+========================================================= */
+const PARAMS = {
+  // Speech
+  JA_LANG: "ja-JP",
+  EN_LANG: "en-US",
+
+  // 日本語を少しゆっくり＋ピッチ微調整
+  JA_RATE: 0.97,
+  EN_RATE: 0.90,
+  JA_PITCH: 1.05,
+  EN_PITCH: 1.00,
+
+  VOLUME: 1.0,
+  GAP_MS: 200,
+
+  // 動作メッセージ（★「説明を開始しますか？」は廃止）
+  START_PROMPT: "の説明を開始します。",
+  STOP_PROMPT: "を停止します。",
+  DESELECT_PROMPT: "停止して、選択を解除します。",
+
+  READ_TABLES_FULLY: true
+};
+
+/* =========================================================
+  日本語を聞きやすく整形
+========================================================= */
+function normalizeJapaneseForSpeech(text){
+  if (!text) return text;
+
+  text = text.replace(/^英語点字とは。/g, "では、英語点字について説明しますね。");
+  text = text.replace(/結論から言うね。/g, "まず、結論から言います。");
+
+  text = text.replace(/例。/g, "たとえば、");
+  text = text.replace(/。dad。face。/gi, "。たとえば、dad。つぎに、face。");
+
+  text = text.replace(/1語/g, "１語（いちご）");
+  text = text.replace(/2語/g, "２語（にご）");
+  text = text.replace(/3語/g, "３語（さんご）");
+  text = text.replace(/1マス/g, "１マス（いちます）");
+  text = text.replace(/2マス/g, "２マス（にます）");
+
+  text = text.replace(/。次。/g, "。つぎです。");
+  text = text.replace(/次。/g, "つぎです。");
+
+  return text;
+}
+
+/* =========================================================
+  日本語セグメントをほどよく結合（抑揚安定）
+========================================================= */
+function compactJapaneseSegments(seq){
+  const out = [];
+  let buf = "";
+  const flush = ()=>{
+    const t = buf.trim();
+    if (t) out.push({lang:"ja", text:t});
+    buf = "";
+  };
+  for (const s of seq){
+    if (s.lang === "ja"){
+      buf += (buf ? " " : "") + s.text;
+      if (buf.length > 70 || /。$/.test(s.text)) flush();
+    } else {
+      flush();
+      out.push(s);
+    }
+  }
+  flush();
+  return out;
+}
+
+/* =========================================================
+  点（ドット）読み上げユーティリティ
+========================================================= */
+function dotsToJa(dots){
+  const uniq = [...new Set(dots)].sort((a,b)=>a-b);
+  if (uniq.length===0) return "点なし";
+  if (uniq.length===1) return `${uniq[0]}の点`;
+  if (uniq.length===2) return `${uniq[0]}と${uniq[1]}の点`;
+  return `${uniq.slice(0,-1).join("、")}、${uniq[uniq.length-1]}の点`;
+}
+function cellToJa(cells){
+  if (!cells || cells.length===0) return "点の情報はありません";
+  if (cells.length===1) return dotsToJa(cells[0]);
+  const parts = cells.map((d,i)=>`${i+1}マス目は${dotsToJa(d)}`);
+  return `${cells.length}マスで、${parts.join("。")}`;
+}
+
+/* =========================================================
+  UEB 基本
+========================================================= */
+const UEB = {
+  letterDots: {
+    a:[1], b:[1,2], c:[1,4], d:[1,4,5], e:[1,5],
+    f:[1,2,4], g:[1,2,4,5], h:[1,2,5], i:[2,4], j:[2,4,5],
+    k:[1,3], l:[1,2,3], m:[1,3,4], n:[1,3,4,5], o:[1,3,5],
+    p:[1,2,3,4], q:[1,2,3,4,5], r:[1,2,3,5], s:[2,3,4], t:[2,3,4,5],
+    u:[1,3,6], v:[1,2,3,6], w:[2,4,5,6], x:[1,3,4,6], y:[1,3,4,5,6], z:[1,3,5,6]
+  },
+
+  capPrefix: [[6]],
+  capWord:   [[6],[6]],
+  capPassage:[[6],[6],[6]],
+  capTerm:   [[6],[3,5,6]],
+
+  numberPrefix: [[3,4,5,6]],
+  digitMap: {1:"a",2:"b",3:"c",4:"d",5:"e",6:"f",7:"g",8:"h",9:"i",0:"j"},
+  period: [[2,5,6]],
+  comma:  [[2]],
+
+  punct: [
+    {nameJa:"コンマ", nameEn:"comma", cells:[[2]]},
+    {nameJa:"セミコロン", nameEn:"semicolon", cells:[[2,3]]},
+    {nameJa:"コロン", nameEn:"colon", cells:[[2,5]]},
+    {nameJa:"ピリオド", nameEn:"period", cells:[[2,5,6]]},
+    {nameJa:"感嘆符", nameEn:"exclamation mark", cells:[[2,3,5]]},
+    {nameJa:"疑問符", nameEn:"question mark", cells:[[2,3,6]]},
+    {nameJa:"アポストロフィ", nameEn:"apostrophe", cells:[[3]]},
+    {nameJa:"ハイフン", nameEn:"hyphen", cells:[[3,6]]},
+    {nameJa:"ダッシュ", nameEn:"dash", cells:[[6],[3,6]]},
+    {nameJa:"エリプシス", nameEn:"ellipsis", cells:[[2,5,6],[2,5,6],[2,5,6]]},
+    {nameJa:"スラッシュ", nameEn:"slash", cells:[[4,5,6],[2,5,6]]},
+    {nameJa:"丸カッコ（開き）", nameEn:"left parenthesis", cells:[[1,2,6]]},
+    {nameJa:"丸カッコ（閉じ）", nameEn:"right parenthesis", cells:[[3,4,5]]},
+    {nameJa:"角カッコ（開き）", nameEn:"left bracket", cells:[[4,6],[1,2,6]]},
+    {nameJa:"角カッコ（閉じ）", nameEn:"right bracket", cells:[[4,6],[3,4,5]]},
+    {nameJa:"ダブルコーテーション（開き）", nameEn:"opening double quotation", cells:[[2,3,6]]},
+    {nameJa:"ダブルコーテーション（閉じ）", nameEn:"closing double quotation", cells:[[3,5,6]]},
+    {nameJa:"シングルコーテーション（開き）", nameEn:"opening single quotation", cells:[[6],[2,3,6]]},
+    {nameJa:"シングルコーテーション（閉じ）", nameEn:"closing single quotation", cells:[[6],[3]]}
+  ],
+
+  italicWord: [[4,6]],
+  italicPassage: [[4,6],[2,3,5,6]],
+  italicTerm: [[4,6],[3,5,6]],
+
+  yoonPrefix: [4,5],
+  barPrefix: [4,5,6],
+  smallPrefix: [4],
+  dakuPrefix: [6],
+
+  inContraction: [3,5],
+  theWord: [2,3,4,6],
+  andWord: [1,2,3,4,6],
+  stGroup: [3,4],
+  wasLower: [3,5,6],
+};
+
+/* =========================================================
+  表データ（あなたの最新版のまま）
+========================================================= */
+const TABLES = {
+  alphabet: [
+    ...("abcdefghij").split("").map(ch=>({ch})),
+    ...("klmnopqrst").split("").map(ch=>({ch})),
+    ...("uvwxyz").split("").map(ch=>({ch}))
+  ],
+  capitals: [
+    {name:"大文字符", en:"capitals prefix", cells:UEB.capPrefix, tip:"次の1文字だけ大文字"},
+    {name:"大文字単語符", en:"capitals word indicator", cells:UEB.capWord, tip:"語全体が大文字"},
+    {name:"大文字パッセージ符", en:"capitals passage indicator", cells:UEB.capPassage, tip:"大文字の語が3語以上続くとき"},
+    {name:"大文字終止符", en:"capitals terminator", cells:UEB.capTerm, tip:"パッセージの終わり"}
+  ],
+  digits: [
+    {digit:1, ch:"a"}, {digit:2, ch:"b"}, {digit:3, ch:"c"}, {digit:4, ch:"d"}, {digit:5, ch:"e"},
+    {digit:6, ch:"f"}, {digit:7, ch:"g"}, {digit:8, ch:"h"}, {digit:9, ch:"i"}, {digit:0, ch:"j"},
+  ],
+  digitRelated: [
+    {name:"数符", en:"numeric prefix", cells:UEB.numberPrefix, tip:"数字の前に付ける"},
+    {name:"小数点（ピリオドと同形）", en:"period", cells:UEB.period, tip:"3.14 の点字で使う"},
+    {name:"桁区切りのコンマ", en:"comma", cells:UEB.comma, tip:"50,000 の区切り"}
+  ],
+  punctuation: UEB.punct,
+
+  stage1a: [
+    {word:"but", dots:UEB.letterDots.b},
+    {word:"can", dots:UEB.letterDots.c},
+    {word:"do", dots:UEB.letterDots.d},
+    {word:"every", dots:UEB.letterDots.e},
+    {word:"from", dots:UEB.letterDots.f},
+    {word:"go", dots:UEB.letterDots.g},
+    {word:"have", dots:UEB.letterDots.h},
+    {word:"just", dots:UEB.letterDots.j},
+    {word:"knowledge", dots:UEB.letterDots.k},
+    {word:"like", dots:UEB.letterDots.l},
+    {word:"more", dots:UEB.letterDots.m},
+    {word:"not", dots:UEB.letterDots.n},
+    {word:"people", dots:UEB.letterDots.p},
+    {word:"quite", dots:UEB.letterDots.q},
+    {word:"rather", dots:UEB.letterDots.r},
+    {word:"so", dots:UEB.letterDots.s},
+    {word:"that", dots:UEB.letterDots.t},
+    {word:"us", dots:UEB.letterDots.u},
+    {word:"very", dots:UEB.letterDots.v},
+    {word:"will", dots:UEB.letterDots.w},
+    {word:"it", dots:UEB.letterDots.x},
+    {word:"you", dots:UEB.letterDots.y},
+    {word:"as", dots:UEB.letterDots.z},
+  ],
+  stage1b: [
+    {word:"and", dots:UEB.andWord},
+    {word:"for", dots:[1,2,3,4,5,6]},
+    {word:"of",  dots:[1,2,3,5,6]},
+    {word:"the", dots:UEB.theWord},
+    {word:"with",dots:[2,3,4,5,6]},
+  ],
+  stage1c: [
+    {word:"child", dots:[1,6]},
+    {word:"shall", dots:[1,4,6]},
+    {word:"this",  dots:[1,4,5,6]},
+    {word:"which", dots:[1,5,6]},
+    {word:"out",   dots:[1,2,5,6]},
+    {word:"still", dots:UEB.stGroup}
+  ],
+
+  stage2dot5: [
+    {word:"day", second:"d"},
+    {word:"ever", second:"e"},
+    {word:"father", second:"f"},
+    {word:"here", second:"h"},
+    {word:"know", second:"k"},
+    {word:"lord", second:"l"},
+    {word:"mother", second:"m"},
+    {word:"name", second:"n"},
+    {word:"one", second:"o"},
+    {word:"part", second:"p"},
+    {word:"question", second:"q"},
+    {word:"right", second:"r"},
+    {word:"some", second:"s"},
+    {word:"time", second:"t"},
+    {word:"under", second:"u"},
+    {word:"work", second:"w"},
+    {word:"young", second:"y"},
+    {word:"there", second:"the"},
+    {word:"character", second:"ch"},
+    {word:"through", second:"th"},
+    {word:"where", second:"wh"},
+    {word:"ought", second:"ou"}
+  ],
+  stage2dot45: [
+    {word:"upon", second:"u"},
+    {word:"word", second:"w"},
+    {word:"these", second:"the"},
+    {word:"those", second:"th"},
+    {word:"whose", second:"wh"},
+  ],
+
+  stage3_456: [
+    {word:"cannot", cells:[[...UEB.barPrefix], UEB.letterDots.c]},
+    {word:"had",    cells:[[...UEB.barPrefix], UEB.letterDots.h]},
+    {word:"many",   cells:[[...UEB.barPrefix], UEB.letterDots.m]},
+    {word:"spirit", cells:[[...UEB.barPrefix], UEB.letterDots.s]},
+    {word:"world",  cells:[[...UEB.barPrefix], UEB.letterDots.w]},
+    {word:"their",  cells:[[...UEB.barPrefix], UEB.theWord]},
+  ],
+  stage3_strongGroups: [
+    {part:"ch", dots:[1,6]},
+    {part:"gh", dots:[1,2,6]},
+    {part:"sh", dots:[1,4,6]},
+    {part:"th", dots:[1,4,5,6]},
+    {part:"wh", dots:[1,5,6]},
+    {part:"ed", dots:[1,2,4,6]},
+    {part:"er", dots:[1,2,4,5,6]},
+    {part:"ou", dots:[1,2,5,6]},
+    {part:"ow", dots:[2,4,6]},
+    {part:"st", dots:UEB.stGroup},
+    {part:"ar", dots:[3,4,5]},
+    {part:"ing",dots:[3,4,6], rule:"語頭には使えない"}
+  ],
+  stage3_lowerGroups: [
+    {part:"en", dots:[2,6]},
+    {part:"in", dots:UEB.inContraction}
+  ],
+  stage3_finalGroups_46: [
+    {part:"ound", dots:[4,6], then:"d"},
+    {part:"ance", dots:[4,6], then:"e"},
+    {part:"sion", dots:[4,6], then:"n"},
+    {part:"less", dots:[4,6], then:"s"},
+    {part:"ount", dots:[4,6], then:"t"}
+  ],
+  stage3_finalGroups_56: [
+    {part:"ence", dots:[5,6], then:"e"},
+    {part:"ong",  dots:[5,6], then:"g"},
+    {part:"ful",  dots:[5,6], then:"l"},
+    {part:"tion", dots:[5,6], then:"n"},
+    {part:"ness", dots:[5,6], then:"s"},
+    {part:"ment", dots:[5,6], then:"t"},
+    {part:"ity",  dots:[5,6], then:"y"}
+  ],
+
+  shortform1: [
+    {word:"about", cellsFrom:"ab"},
+    {word:"according", cellsFrom:"ac"},
+    {word:"after", cellsFrom:"af"},
+    {word:"again", cellsFrom:"ag"},
+    {word:"also", cellsFrom:"al"},
+    {word:"because", cellsFrom:"because"},
+    {word:"before", cellsFrom:"before"},
+    {word:"behind", cellsFrom:"behind"},
+    {word:"below", cellsFrom:"below"},
+    {word:"beneath", cellsFrom:"beneath"},
+    {word:"beside", cellsFrom:"beside"},
+    {word:"between", cellsFrom:"between"},
+    {word:"beyond", cellsFrom:"beyond"},
+    {word:"blind", cellsFrom:"bl"},
+    {word:"either", cellsFrom:"ei"},
+    {word:"friend", cellsFrom:"fr"},
+    {word:"children", cellsFrom:"children"},
+    {word:"could", cellsFrom:"cd"},
+    {word:"first", cellsFrom:"first"},
+    {word:"good", cellsFrom:"gd"},
+    {word:"him", cellsFrom:"hm"},
+    {word:"its", cellsFrom:"xs"},
+    {word:"letter", cellsFrom:"lr"},
+    {word:"little", cellsFrom:"ll"},
+    {word:"much", cellsFrom:"much"},
+    {word:"must", cellsFrom:"must"},
+    {word:"paid", cellsFrom:"pd"},
+    {word:"quick", cellsFrom:"qk"},
+    {word:"said", cellsFrom:"sd"},
+    {word:"should", cellsFrom:"should"},
+    {word:"such", cellsFrom:"such"},
+    {word:"today", cellsFrom:"td"},
+    {word:"tomorrow", cellsFrom:"tm"},
+    {word:"tonight", cellsFrom:"tn"},
+    {word:"would", cellsFrom:"wd"},
+    {word:"your", cellsFrom:"yr"},
+    {word:"above", cellsFrom:"abv"},
+    {word:"afternoon", cellsFrom:"afn"},
+    {word:"afterward", cellsFrom:"afw"},
+    {word:"against", cellsFrom:"against"},
+    {word:"braille", cellsFrom:"brl"},
+    {word:"great", cellsFrom:"grt"},
+    {word:"together", cellsFrom:"tgr"}
+  ],
+  shortform2: [
+    {word:"across", cellsFrom:"acr"},
+    {word:"almost", cellsFrom:"alm"},
+    {word:"already", cellsFrom:"alr"},
+    {word:"always", cellsFrom:"alw"},
+    {word:"altogether", cellsFrom:"alt"},
+    {word:"although", cellsFrom:"although"},
+    {word:"immediate", cellsFrom:"imm"},
+    {word:"necessary", cellsFrom:"nec"},
+    {word:"neither", cellsFrom:"nei"},
+    {word:"perhaps", cellsFrom:"peh"},
+    {word:"myself", cellsFrom:"myf"},
+    {word:"yourself", cellsFrom:"yrf"},
+    {word:"himself", cellsFrom:"hmf"},
+    {word:"herself", cellsFrom:"herf"},
+    {word:"itself", cellsFrom:"xf"},
+    {word:"oneself", cellsFrom:"of"},
+    {word:"thyself", cellsFrom:"thyf"},
+    {word:"ourselves", cellsFrom:"orvs"},
+    {word:"yourselves", cellsFrom:"yrvs"},
+    {word:"themselves", cellsFrom:"hmvs"}
+  ],
+
+  lowerWordsigns: [
+    {word:"be", dots:[2]},
+    {word:"were", dots:[2,3,4,5,6]},
+    {word:"his", dots:[2,3,6]},
+    {word:"was", dots:UEB.wasLower},
+    {word:"enough", dots:[2,6]},
+    {word:"in", dots:UEB.inContraction}
+  ],
+  lowerGroupsigns: [
+    {part:"be", dots:[2], where:"語頭のみ"},
+    {part:"con", dots:[2,5], where:"語頭のみ"},
+    {part:"dis", dots:[2,5,6], where:"語頭のみ"},
+    {part:"ea", dots:[2], where:"語中のみ"},
+    {part:"bb", dots:[2], where:"語中のみ"},
+    {part:"cc", dots:[2,5], where:"語中のみ"},
+    {part:"ff", dots:[2,3,5], where:"語中のみ"},
+    {part:"gg", dots:[2,3,4,5,6], where:"語中のみ"},
+  ],
+
+  currencySymbols: [
+    {nameJa:"ユーロ",  en:"euro",   cells:[[...UEB.yoonPrefix], UEB.letterDots.e]},
+    {nameJa:"ポンド",  en:"pound",  cells:[[...UEB.yoonPrefix], UEB.letterDots.l]},
+    {nameJa:"ドル",    en:"dollar", cells:[[...UEB.yoonPrefix], UEB.letterDots.s]},
+    {nameJa:"円",      en:"yen",    cells:[[...UEB.yoonPrefix], UEB.letterDots.y]},
+    {nameJa:"度",      en:"degree", cells:[[...UEB.smallPrefix], UEB.letterDots.j]},
+    {nameJa:"パーセント", en:"percent", cells:[[...UEB.italicWord], UEB.wasLower]},
+    {nameJa:"アスタリスク", en:"asterisk", cells:[[...UEB.dakuPrefix], UEB.inContraction]},
+    {nameJa:"アンパサンド", en:"ampersand", cells:[[...UEB.yoonPrefix], UEB.andWord]},
+    {nameJa:"アットマーク", en:"commercial at", cells:[[...UEB.yoonPrefix], UEB.letterDots.a]},
+    {nameJa:"チルダ", en:"tilde", cells:[[...UEB.yoonPrefix], UEB.inContraction]},
+    {nameJa:"アンダーバー", en:"low line", cells:[[...UEB.italicWord], [3,6]]},
+    {nameJa:"ビュレット", en:"bullet", cells:[[...UEB.barPrefix], ...UEB.period]}
+  ],
+  currencyExamples: [
+    {ink:"\\10,000", speak:"バックスラッシュ いちまんえん。点字は、円の記号、つづけて数符、1、0、コンマ、0、0、0。"},
+    {ink:"75%", speak:"75パーセント。点字は、数符、7、5、パーセント記号。"}
+  ],
+
+  modifiers: [
+    {nameJa:"アキュートアクセント", en:"acute accent", cells:[[...UEB.smallPrefix],[3,4]]},
+    {nameJa:"グラーブアクセント", en:"grave accent", cells:[[...UEB.smallPrefix],[1,6]]},
+    {nameJa:"サーカムフレックス", en:"circumflex", cells:[[...UEB.smallPrefix],[1,4,6]]},
+    {nameJa:"ウムラウト（トレマ）", en:"diaeresis", cells:[[...UEB.smallPrefix],[2,5]]},
+    {nameJa:"セディラ", en:"cedilla", cells:[[...UEB.smallPrefix],[1,2,3,4,6]]}
+  ],
+  gaiji: [
+    {nameJa:"外字符", en:"outside-letter indicator", cells:[[5,6]]},
+    {nameJa:"外国語引用符（開き〜閉じ）", en:"foreign-language quotation marks", cells:[[2,3,6],[3,5,6]]}
+  ],
+  phonetic: [
+    {nameJa:"発音記号符 [ ]", en:"phonetic brackets", cells:[[5,6],[2,3]]},
+    {nameJa:"長音符", en:"length mark", cells:[[2,5]]},
+    {nameJa:"第1ストレス符", en:"primary stress", cells:[[4,5,6]]},
+    {nameJa:"第2ストレス符", en:"secondary stress", cells:[[4]]}
+  ]
+};
+
+/* =========================================================
+  音声（Web Speech API）
+========================================================= */
+let voicesCache = [];
+function loadVoices(){ voicesCache = speechSynthesis.getVoices(); }
+if ("speechSynthesis" in window) {
+  loadVoices();
+  speechSynthesis.onvoiceschanged = loadVoices;
+}
+function pickVoice(lang){
+  const lower = lang.toLowerCase();
+  return voicesCache.find(v => (v.lang||"").toLowerCase().startsWith(lower)) || null;
+}
+function speakOne({lang,text}){
+  return new Promise(resolve=>{
+    if (!("speechSynthesis" in window)) return resolve();
+    const finalText = (lang === "ja") ? normalizeJapaneseForSpeech(text) : text;
+
+    const u = new SpeechSynthesisUtterance(finalText);
+    u.lang = (lang==="en") ? PARAMS.EN_LANG : PARAMS.JA_LANG;
+    u.rate = (lang==="en") ? PARAMS.EN_RATE : PARAMS.JA_RATE;
+    u.pitch = (lang==="en") ? PARAMS.EN_PITCH : PARAMS.JA_PITCH;
+    u.volume = PARAMS.VOLUME;
+
+    const v = pickVoice(u.lang); if (v) u.voice = v;
+    u.onend = ()=>setTimeout(resolve, PARAMS.GAP_MS);
+    u.onerror=()=>setTimeout(resolve, PARAMS.GAP_MS);
+    speechSynthesis.speak(u);
+  });
+}
+async function speakSequence(seq, token){
+  for (const item of seq){
+    if (token.cancelled) return;
+    await speakOne(item);
+  }
+}
+
+/* =========================================================
+  先生の説明（要点＋表の全項目を読む）
+========================================================= */
+function explainCellAfterEnglish(english, cells){
+  return [
+    {lang:"en", text: english},
+    {lang:"ja", text: `は、${cellToJa(cells)}です。`}
+  ];
+}
+
+function buildExplainAlphabet(){
+  const seq = [];
+  seq.push({lang:"ja", text:"表8-5-1。アルファベットです。1語はひと続き。語と語の間は1マスあけます。"});
+  for (const row of TABLES.alphabet){
+    const ch = row.ch;
+    seq.push({lang:"en", text: ch});
+    seq.push({lang:"ja", text: `は、${dotsToJa(UEB.letterDots[ch])}です。`});
+  }
+  return seq;
+}
+
+function buildExplainCapitals(){
+  const seq = [];
+  seq.push({lang:"ja", text:"表8-5-2。大文字を示す記号です。何も付かなければ小文字。大文字にしたいときは、前に記号を付けます。"});
+  for (const it of TABLES.capitals){
+    seq.push({lang:"ja", text:`${it.name}。意味は、${it.tip}。点は、${cellToJa(it.cells)}。`});
+  }
+  seq.push({lang:"ja", text:"大事な注意。ハイフンやアポストロフィが入った語が全部大文字のときは、ハイフンやアポストロフィの後にも大文字記号が必要です。"});
+  return seq;
+}
+
+function buildExplainNumbers(){
+  const seq = [];
+  seq.push({lang:"ja", text:"表8-5-3。数字です。数字は、数符を付けてから書きます。"});
+  seq.push({lang:"ja", text:`数符は、${cellToJa(UEB.numberPrefix)}です。`});
+  seq.push({lang:"ja", text:"数字の1から0は、aからjと同じ形です。英語→点の順でいきます。"});
+  for (const d of TABLES.digits){
+    seq.push({lang:"en", text:String(d.digit)});
+    seq.push({lang:"ja", text:`は、${dotsToJa(UEB.letterDots[d.ch])}です。`});
+  }
+  seq.push({lang:"ja", text:"日本語点字と違う注意が2つ。小数点と、桁区切りのコンマです。"});
+  for (const it of TABLES.digitRelated){
+    seq.push({lang:"ja", text:`${it.name}。${it.tip}。点は、${cellToJa(it.cells)}です。`});
+  }
+  seq.push({lang:"ja", text:"そして大事。数字の直後に小文字の a から j が来ると、数字として読まれやすいので、間に 1級記号符『外』をはさみます。k から z なら不要です。"});
+  return seq;
+}
+
+function buildExplainPunctuation(){
+  const seq = [];
+  seq.push({lang:"ja", text:"表8-5-4。句読符です。位置と順番、前後のスペースは、原則として墨字どおり。"});
+  seq.push({lang:"ja", text:"超重要。英語点字のピリオドの後は、1マスだけあけます。日本語点字みたいに2マスじゃありません。"});
+  seq.push({lang:"ja", text:"表の主なものを、英語→点の順で全部言います。"});
+  for (const p of TABLES.punctuation){
+    seq.push({lang:"en", text:p.nameEn});
+    seq.push({lang:"ja", text:`${p.nameJa}は、${cellToJa(p.cells)}です。`});
+  }
+  return seq;
+}
+
+function buildExplainContractionIntro(){
+  return [
+    {lang:"ja", text:"しゅくやくは、英語のつづりを短くして、少ないマスで書くための記号です。グレード2ではこれが主役です。"},
+    {lang:"ja", text:"UEBのしゅくやくは182個。点字の形と働きで分類されます。しゅくやく語（しゅくやくご）は語全体。しゅくやく部（しゅくやくぶ）は語の一部。たんけい語は省略形です。"},
+    {lang:"ja", text:"『強い形』は、上下と左右に点が入って形がしっかり。『下がり』は、1の点と4の点が入らない形のことです。"}
+  ];
+}
+
+function buildExplainStage1(){
+  const seq = [];
+  seq.push({lang:"ja", text:"表8-5-5。段階1。一マスで語全体を表すしゅくやくです。ここは頻出。表の全部を読むよ。"});
+  seq.push({lang:"ja", text:"(a) アルファベットしゅくやく語。"});
+  for (const it of TABLES.stage1a){
+    seq.push(...explainCellAfterEnglish(it.word, [it.dots]));
+  }
+  seq.push({lang:"ja", text:"(b) 強しゅくやく。語全体を表す用法。"});
+  for (const it of TABLES.stage1b){
+    seq.push(...explainCellAfterEnglish(it.word, [it.dots]));
+  }
+  seq.push({lang:"ja", text:"(c) 強しゅくやく語。これも語全体で使えます。"});
+  for (const it of TABLES.stage1c){
+    seq.push(...explainCellAfterEnglish(it.word, [it.dots]));
+  }
+  seq.push({lang:"ja", text:"注意。a、i、o以外で、単独のアルファベット1文字は、しゅくやく語と区別するために、前に1級記号符『外』を付けます。"});
+  return seq;
+}
+
+function buildExplainStage2(){
+  const seq = [];
+  seq.push({lang:"ja", text:"表8-5-6。段階2。二マスで、1語全体または語の部分を表すしゅくやく。ここは頭字しゅくやくが中心です。"});
+  seq.push({lang:"ja", text:"基本形。2マスで、1マス目は5の点。2マス目は頭文字の形。表の全部を読むよ。"});
+  for (const it of TABLES.stage2dot5){
+    let secondDots;
+    if (it.second==="the") secondDots = UEB.theWord;
+    else if (it.second==="ch") secondDots = [1,6];
+    else if (it.second==="th") secondDots = [1,4,5,6];
+    else if (it.second==="wh") secondDots = [1,5,6];
+    else if (it.second==="ou") secondDots = [1,2,5,6];
+    else secondDots = UEB.letterDots[it.second] || [];
+    seq.push(...explainCellAfterEnglish(it.word, [[5], secondDots]));
+  }
+  seq.push({lang:"ja", text:"次。1マス目が4と5の点のタイプ。表の全部。"});
+  for (const it of TABLES.stage2dot45){
+    let secondDots;
+    if (it.second==="the") secondDots = UEB.theWord;
+    else if (it.second==="th") secondDots = [1,4,5,6];
+    else if (it.second==="wh") secondDots = [1,5,6];
+    else secondDots = UEB.letterDots[it.second] || [];
+    seq.push(...explainCellAfterEnglish(it.word, [[4,5], secondDots]));
+  }
+  return seq;
+}
+
+function buildExplainStage3(){
+  const seq = [];
+  seq.push({lang:"ja", text:"表8-5-7。段階3。語の部分を表すしゅくやくです。表の項目を全部、英語→点の順で言います。"});
+  seq.push({lang:"ja", text:"まず、4、5、6の点と組み合わせるもの。"});
+  for (const it of TABLES.stage3_456){
+    seq.push(...explainCellAfterEnglish(it.word, it.cells));
+  }
+  seq.push({lang:"ja", text:"次に、強しゅくやく部。語の中の、つづりのかたまりを1マスで表します。"});
+  for (const it of TABLES.stage3_strongGroups){
+    seq.push({lang:"en", text: it.part});
+    let extra = it.rule ? `。注意。${it.rule}。` : "。";
+    seq.push({lang:"ja", text: `は、${dotsToJa(it.dots)}です${extra}`});
+  }
+  seq.push({lang:"ja", text:"次に、下がりしゅくやく部。en と in。"});
+  for (const it of TABLES.stage3_lowerGroups){
+    seq.push({lang:"en", text: it.part});
+    seq.push({lang:"ja", text: `は、${dotsToJa(it.dots)}です。`});
+  }
+  seq.push({lang:"ja", text:"最後に、末字しゅくやく部。語頭には使えない、語の終わり側のかたまりです。まず4と6の点と組み合わせるもの。"});
+  for (const it of TABLES.stage3_finalGroups_46){
+    const second = UEB.letterDots[it.then] || [];
+    seq.push({lang:"en", text: it.part});
+    seq.push({lang:"ja", text: `は、2マスで、1マス目は${dotsToJa(it.dots)}、2マス目は${dotsToJa(second)}です。`});
+  }
+  seq.push({lang:"ja", text:"次に5と6の点と組み合わせるもの。"});
+  for (const it of TABLES.stage3_finalGroups_56){
+    const second = UEB.letterDots[it.then] || [];
+    seq.push({lang:"en", text: it.part});
+    seq.push({lang:"ja", text: `は、2マスで、1マス目は${dotsToJa(it.dots)}、2マス目は${dotsToJa(second)}です。`});
+  }
+  seq.push({lang:"ja", text:"ルールの要点。しゅくやくは、複合語の要素をまたいで使えません。そして、2通りあるときは、原則マス数が少ない方。マス数が同じなら強い形を優先。"});
+  return seq;
+}
+
+function buildExplainShortforms(list, title){
+  const seq = [];
+  seq.push({lang:"ja", text:`${title}。たんけい語は、省略形です。表の単語を全部、英語→点の順でいきます。`});
+  seq.push({lang:"ja", text:"たんけい語は、つづりを忘れやすいので、フルスペルも口で確認するのがコツです。"});
+  for (const it of list){
+    seq.push({lang:"en", text: it.word});
+    const src = it.cellsFrom;
+    const letters = (src || "").toLowerCase().replace(/[^a-z]/g,"").split("");
+    if (letters.length===0){
+      seq.push({lang:"ja", text:"は、教科書のたんけい語として覚える項目です。点の形は先生や教材と合わせて確認しよう。"});
+      continue;
+    }
+    seq.push({lang:"ja", text:"点の説明。先頭の形を、1文字ずつ点で言うね。"});
+    for (const ch of letters){
+      if (UEB.letterDots[ch]){
+        seq.push({lang:"en", text: ch});
+        seq.push({lang:"ja", text:`は、${dotsToJa(UEB.letterDots[ch])}。`});
+      }
+    }
+    seq.push({lang:"ja", text:"この先の省略は、教科書どおりのたんけい語として覚えます。"});
+  }
+  return seq;
+}
+
+function buildExplainLowerWordsigns(){
+  const seq = [];
+  seq.push({lang:"ja", text:"表8-5-10。段階6。下がり記号で語全体を表すしゅくやくです。表の語を全部、英語→点。"});
+  for (const it of TABLES.lowerWordsigns){
+    seq.push(...explainCellAfterEnglish(it.word, [it.dots]));
+  }
+  seq.push({lang:"ja", text:"注意。be, were, his, was の下がりしゅくやく語は、下がりの句読符とくっつけられない、という制限があります。文章で確認しながら使います。"});
+  seq.push({lang:"ja", text:"もう一つ。enough と in は、下がりの句読符と接するとき、前後に1か4の点を含む文字や記号とつながっていれば使える、そうでなければ使えない、というルールがあります。"});
+  return seq;
+}
+
+function buildExplainLowerGroupsigns(){
+  const seq = [];
+  seq.push({lang:"ja", text:"表8-5-11。段階7。下がり記号で語の部分を表すしゅくやくです。表の項目を全部、英語→点。"});
+  for (const it of TABLES.lowerGroupsigns){
+    seq.push({lang:"en", text: it.part});
+    seq.push({lang:"ja", text:`は、${dotsToJa(it.dots)}。使う場所は、${it.where}です。`});
+  }
+  seq.push({lang:"ja", text:"重要ルール。be, con, dis の下がりしゅくやく部は、語頭の be, con, dis が1音節を作っているときに使います。better や best、disc や dish みたいに条件が違うと使えません。"});
+  return seq;
+}
+
+function buildExplainItalics(){
+  const seq = [];
+  seq.push({lang:"ja", text:"表8-5-12。書体。特にイタリック体（斜体）です。英語では強調や外国語でよく出ます。"});
+  seq.push({lang:"ja", text:`イタリック単語符は、${cellToJa(UEB.italicWord)}。1語だけ斜体のときに前に付けます。`});
+  seq.push({lang:"ja", text:`イタリックパッセージ符は、${cellToJa(UEB.italicPassage)}。斜体が3語以上続くとき、最初に付けます。`});
+  seq.push({lang:"ja", text:`イタリック終止符は、${cellToJa(UEB.italicTerm)}。パッセージの終わりに付けます。`});
+  seq.push({lang:"ja", text:"中学2年までは複雑なら省略したり、ダブルコーテーションで囲む工夫もOK、という配慮もあります。"});
+  return seq;
+}
+
+function buildExplainCurrency(){
+  const seq = [];
+  seq.push({lang:"ja", text:"表8-5-13。貨幣単位などの記号です。"});
+  seq.push({lang:"ja", text:"まず、表にある主な記号を全部。英語（または日本語名）→点の順でいきます。"});
+  for (const it of TABLES.currencySymbols){
+    seq.push({lang:"en", text: it.en});
+    seq.push({lang:"ja", text: `${it.nameJa}は、${cellToJa(it.cells)}です。`});
+  }
+  seq.push({lang:"ja", text:"次に、表にある例。"});
+  for (const ex of TABLES.currencyExamples){
+    seq.push({lang:"ja", text: `${ex.ink}。${ex.speak}`});
+  }
+  seq.push({lang:"ja", text:"ここは試験にも出やすいので、数字のルール（数符、桁区切り、小数点）とセットで練習しよう。"});
+  return seq;
+}
+
+function buildExplainModifiers(){
+  const seq = [];
+  seq.push({lang:"ja", text:"表8-5-14。修飾符。アクセント記号などです。英語の文章でも外来語で出ます。表の主なものを全部言うよ。"});
+  for (const it of TABLES.modifiers){
+    seq.push({lang:"en", text: it.en});
+    seq.push({lang:"ja", text: `${it.nameJa}は、${cellToJa(it.cells)}です。`});
+  }
+  seq.push({lang:"ja", text:"注意。修飾符は、2マス目がしゅくやくと同じ形のことがあって、初学者には紛らわしい。中3でしゅくやくを一通り学ぶまでは、導入は慎重が望ましい、という配慮があります。"});
+  return seq;
+}
+
+function buildExplainGaiji(){
+  const seq = [];
+  seq.push({lang:"ja", text:"表8-5-15。外字符と外国語引用符。日本語の文章の中でアルファベットを書くときは、外字符を前に付けます。"});
+  for (const it of TABLES.gaiji){
+    seq.push({lang:"en", text: it.en});
+    seq.push({lang:"ja", text: `${it.nameJa}は、${cellToJa(it.cells)}です。`});
+  }
+  seq.push({lang:"ja", text:"2文字以上の略称でも、外字符は1つだけ付けて続けて書きます。大文字には大文字符。全部大文字なら（日本語側の）重大文字符を使います。しゅくやくや修飾符が付いた文字は、外字符では書けない、という注意もあります。"});
+  seq.push({lang:"ja", text:"日本語の中に英語の語句や文を書くときは、原則、前後を外国語引用符で囲みます。その内側はUEBの規則で書き、グレード2ならしゅくやくも使います。"});
+  return seq;
+}
+
+function buildExplainPhonetic(){
+  const seq = [];
+  seq.push({lang:"ja", text:"表8-5-16。発音記号。これはUEBそのものではなく、万国音標文字の点字体系です。"});
+  seq.push({lang:"ja", text:"表の記号を、必要なものから言います。"});
+  for (const it of TABLES.phonetic){
+    seq.push({lang:"en", text: it.en});
+    seq.push({lang:"ja", text: `${it.nameJa}は、${cellToJa(it.cells)}です。`});
+  }
+  seq.push({lang:"ja", text:"ルール。発音記号の前後は発音記号符で囲みます。ストレス符は該当する母音の前に置きます。英単語と発音記号を並べるときは、原則、英単語を外国語引用符で囲みます。"});
+  return seq;
+}
+
+function buildExplainTrends(){
+  return [
+    {lang:"ja", text:"(12) 英語点字の動向です。今の標準はUEB、統一英語点字。英語圏で統一された新しい方式です。"},
+    {lang:"ja", text:"イギリスとアメリカでの本格導入は2016年から。日本でも中学教科書などでUEB導入が進みました。古い点訳資料には旧方式（EBAE）もあるので、教材に使う前に『UEBか』を確認するのが大事です。"},
+    {lang:"ja", text:"もっと深く学ぶなら、UEB規則集や日本語の解説資料が参考になります。"}
+  ];
+}
+
+/* =========================================================
+  ボタンごとのレッスン
+========================================================= */
+function buildLesson(id){
+  const seq = [];
+  if (id==="1"){
+    seq.push({lang:"ja", text:"英語点字とは。結論から言うね。英語点字の中では、文字は最初からアルファベットが前提。だから、日本語点字で使う外字符は、英語点字の中では基本いりません。"});
+    seq.push({lang:"ja", text:"英単語は、1語はひと続き。語と語の間は1マスあけます。例。dad。face。こういうふうに続けて書きます。"});
+    if (PARAMS.READ_TABLES_FULLY) seq.push(...buildExplainAlphabet());
+  }
+  else if (id==="2"){
+    seq.push({lang:"ja", text:"グレード1とグレード2。グレード1は、アルファベット、数字、句読符、大文字や書体の記号など、基本セット。ここが土台。"});
+    seq.push({lang:"ja", text:"グレード2は、しゅくやくを使って短く書きます。182個のしゅくやくがあり、紙面がだいたい30パーセント節約できて、読み書きが速くなります。英語点字の本はグレード2が標準です。"});
+    seq.push({lang:"ja", text:"中学2から3年で、しゅくやくを7段階に分けて少しずつ学ぶ、という構成になります。"});
+  }
+  else if (id==="3"){
+    seq.push({lang:"ja", text:"アルファベットと大文字。まずアルファベット。次に大文字のルール。大文字は、前に大文字記号を付けて表します。"});
+    if (PARAMS.READ_TABLES_FULLY){
+      seq.push(...buildExplainAlphabet());
+      seq.push(...buildExplainCapitals());
+    } else {
+      seq.push({lang:"ja", text:`大文字符は${cellToJa(UEB.capPrefix)}。大文字単語符は${cellToJa(UEB.capWord)}。3語以上の大文字は大文字パッセージ符で始め、最後は大文字終止符で終えます。`});
+    }
+  }
+  else if (id==="4"){
+    seq.push({lang:"ja", text:"数字。まず数符。数符のあとに数字を書きます。数字の形は a から j と同じ。"});
+    if (PARAMS.READ_TABLES_FULLY) seq.push(...buildExplainNumbers());
+  }
+  else if (id==="5"){
+    seq.push({lang:"ja", text:"句読符。位置と順番は墨字どおり。英語点字のピリオドの後は1マスあけ。段落の始めは2マス下げ。"});
+    if (PARAMS.READ_TABLES_FULLY) seq.push(...buildExplainPunctuation());
+  }
+  else if (id==="6"){
+    seq.push(...buildExplainContractionIntro());
+    seq.push({lang:"ja", text:"次の6-1から6-7で、表に沿って段階ごとに全部学べます。"});
+  }
+  else if (id==="6-1"){ seq.push(...buildExplainStage1()); }
+  else if (id==="6-2"){ seq.push(...buildExplainStage2()); }
+  else if (id==="6-3"){ seq.push(...buildExplainStage3()); }
+  else if (id==="6-4"){ seq.push(...buildExplainShortforms(TABLES.shortform1, "表8-5-8。段階4")); }
+  else if (id==="6-5"){ seq.push(...buildExplainShortforms(TABLES.shortform2, "表8-5-9。段階5")); }
+  else if (id==="6-6"){ seq.push(...buildExplainLowerWordsigns()); }
+  else if (id==="6-7"){ seq.push(...buildExplainLowerGroupsigns()); }
+  else if (id==="7"){ seq.push(...buildExplainItalics()); }
+  else if (id==="8"){ seq.push(...buildExplainCurrency()); }
+  else if (id==="9"){ seq.push(...buildExplainModifiers()); }
+  else if (id==="10"){ seq.push(...buildExplainGaiji()); }
+  else if (id==="11"){ seq.push(...buildExplainPhonetic()); }
+  else if (id==="12"){ seq.push(...buildExplainTrends()); }
+  else { seq.push({lang:"ja", text:"この項目は準備中です。"}); }
+  return seq;
+}
+
+/* =========================================================
+  UIロジック（★確認なし：1回押したら即開始）
+========================================================= */
+const statusEl = document.getElementById("status");
+const ariaLive = document.getElementById("ariaLive");
+let selectedId = null;
+let playingId = null;
+let currentToken = {cancelled:false};
+
+function setStatus(msg){
+  statusEl.textContent = "状態： " + msg;
+  ariaLive.textContent = msg;
+}
+function stopSpeech(){
+  try{ speechSynthesis.cancel(); }catch(e){}
+  currentToken.cancelled = true;
+  currentToken = {cancelled:false};
+  playingId = null;
+}
+function clearSelection(){
+  selectedId = null;
+  document.querySelectorAll(".btn.selected").forEach(b=>b.classList.remove("selected"));
+}
+function selectButton(btn){
+  clearSelection();
+  btn.classList.add("selected");
+  selectedId = btn.dataset.id;
+}
+
+async function startLesson(id, name){
+  playingId = id;
+  setStatus(`${name} の説明中`);
+
+  const seq = [
+    {lang:"ja", text:`${name}${PARAMS.START_PROMPT}`},
+    ...buildLesson(id)
+  ];
+  const finalSeq = compactJapaneseSegments(seq);
+  await speakSequence(finalSeq, currentToken);
+
+  if (!currentToken.cancelled && playingId===id){
+    playingId = null;
+    setStatus("待機中");
+  }
+}
+
+async function handleButton(btn){
+  const id = btn.dataset.id;
+  const name = btn.textContent.trim();
+
+  // 説明中に同じボタン → 停止（トグル）
+  if (playingId === id){
+    stopSpeech();
+    setStatus(`${name} を停止`);
+    await speakSequence([{lang:"ja", text:`${name}${PARAMS.STOP_PROMPT}`}], currentToken);
+    return;
+  }
+
+  // 別ボタンなら：いま鳴ってる音声を止めて、そのまま切り替え
+  if (playingId && playingId !== id) stopSpeech();
+
+  // 選択状態を更新
+  selectButton(btn);
+
+  // ★1回押したら即開始
+  await startLesson(id, name);
+}
+
+document.querySelectorAll(".btn").forEach(btn=>{
+  btn.addEventListener("click",(e)=>{
+    e.stopPropagation();
+    handleButton(btn);
+  });
+});
+
+// ボタン以外を押したら停止＋選択解除
+document.addEventListener("click", async (e)=>{
+  const isBtn = e.target?.classList?.contains("btn");
+  if (isBtn) return;
+
+  if (playingId){
+    stopSpeech();
+  }
+  if (selectedId !== null){
+    clearSelection();
+    setStatus("停止して選択解除");
+    await speakSequence([{lang:"ja", text:PARAMS.DESELECT_PROMPT}], currentToken);
+  }
+});
+
+setStatus("待機中");
+</script>
+</body>
+</html>
