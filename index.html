@@ -52,13 +52,13 @@
   <button class="btn" data-id="5">5 句読符</button>
 
   <button class="btn" data-id="6">6 しゅくやく</button>
-  <button class="btn" data-id="6-1">6-1 一マスで語全体を表すしゅくやく</button>
-  <button class="btn" data-id="6-2">6-2 二マスで１語全体又は部分を表すしゅくやく</button>
-  <button class="btn" data-id="6-3">6-3 一マス又は二マスで語の部分を表すしゅくやく</button>
-  <button class="btn" data-id="6-4">6-4 たんけい語１</button>
-  <button class="btn" data-id="6-5">6-5 たんけい語２</button>
-  <button class="btn" data-id="6-6">6-6 下がり記号で語全体を表すしゅくやく</button>
-  <button class="btn" data-id="6-7">6-7 下がり記号で語の部分を表すしゅくやく</button>
+  <button class="btn" data-id="6-1">6の1 一マスで語全体を表すしゅくやく</button>
+  <button class="btn" data-id="6-2">6の2 二マスで１語全体又は部分を表すしゅくやく</button>
+  <button class="btn" data-id="6-3">6の3 一マス又は二マスで語の部分を表すしゅくやく</button>
+  <button class="btn" data-id="6-4">6の4 たんけい語１</button>
+  <button class="btn" data-id="6-5">6の5 たんけい語２</button>
+  <button class="btn" data-id="6-6">6の6 下がり記号で語全体を表すしゅくやく</button>
+  <button class="btn" data-id="6-7">6の7 下がり記号で語の部分を表すしゅくやく</button>
 
   <button class="btn" data-id="7">7 書体を示す記号</button>
   <button class="btn" data-id="8">8 貨幣単位などの記号</button>
@@ -95,6 +95,52 @@ const PARAMS = {
 
   READ_TABLES_FULLY: true
 };
+
+/* =========================================================
+  【追加】縮約の発音を日本語（ローマ字読み／スペル読み）で出したいもの
+  - ここを書き換えるだけで、音声出力を調整できます
+========================================================= */
+const SPECIAL_TTS_JA = {
+  // 1マスで語の部分（強い形）など：聞き取りづらいのでスペル読み（例：ch→シーエイチ）
+  "ch": "シーエイチ",
+  "gh": "ジーエイチ",
+  "sh": "エスエイチ",
+  "th": "ティーエイチ",
+  "wh": "ダブリューエイチ",
+  "ed": "イーディー",
+  "er": "イーアール",
+  "ou": "オーユー",
+  "ow": "オーダブリュー",
+  "st": "エスティー",
+  "ar": "エーアール",
+  "ing": "アイエヌジー",
+  "en": "イーエヌ",
+  "in": "アイエヌ",
+  "ound": "オーユーエヌディー",
+  "ance": "エーエヌシーイー",
+  "sion": "エスアイオーエヌ",
+  "less": "エルイーエスエス",
+  "ount": "オーユーエヌティ―",
+  "ence": "イ―エヌシーイー",
+  "ong": "オーエヌジー",
+  "ful": "エフユーエル",
+  "tion": "ティーアイオーエヌ",
+  "ness": "エヌイーエスエス",
+  "ment": "エムイーエヌティ―",
+  "ity": "アイティーワイ",
+
+  // 2マスで語末側のかたまり：日本語（ローマ字読み寄り）で言う
+  "be": "ビー",
+  "con": "シーオーエヌ",
+  "dis": "ディーアイエス"
+};
+
+// 「英語セグメント」を作るときに、必要なら日本語セグメントに差し替える
+function speakTokenSmart(text){
+  const key = String(text || "").trim().toLowerCase();
+  if (SPECIAL_TTS_JA[key]) return { lang:"ja", text: SPECIAL_TTS_JA[key] };
+  return { lang:"en", text: String(text || "") };
+}
 
 /* =========================================================
   日本語を聞きやすく整形
@@ -319,8 +365,7 @@ const TABLES = {
     {word:"those", second:"th"},
     {word:"whose", second:"wh"},
   ],
-
-  stage3_456: [
+  stage2dot456: [
     {word:"cannot", cells:[[...UEB.barPrefix], UEB.letterDots.c]},
     {word:"had",    cells:[[...UEB.barPrefix], UEB.letterDots.h]},
     {word:"many",   cells:[[...UEB.barPrefix], UEB.letterDots.m]},
@@ -504,6 +549,7 @@ function pickVoice(lang){
 function speakOne({lang,text}){
   return new Promise(resolve=>{
     if (!("speechSynthesis" in window)) return resolve();
+
     const finalText = (lang === "ja") ? normalizeJapaneseForSpeech(text) : text;
 
     const u = new SpeechSynthesisUtterance(finalText);
@@ -537,7 +583,7 @@ function explainCellAfterEnglish(english, cells){
 
 function buildExplainAlphabet(){
   const seq = [];
-  seq.push({lang:"ja", text:"表8-5-1。アルファベットです。1語はひと続き。語と語の間は1マスあけます。"});
+  seq.push({lang:"ja", text:"表8の5の1。アルファベットです。1語はひと続き。語と語の間は1マスあけます。"});
   for (const row of TABLES.alphabet){
     const ch = row.ch;
     seq.push({lang:"en", text: ch});
@@ -548,7 +594,7 @@ function buildExplainAlphabet(){
 
 function buildExplainCapitals(){
   const seq = [];
-  seq.push({lang:"ja", text:"表8-5-2。大文字を示す記号です。何も付かなければ小文字。大文字にしたいときは、前に記号を付けます。"});
+  seq.push({lang:"ja", text:"表8の5の2。大文字を示す記号です。何も付かなければ小文字。大文字にしたいときは、前に記号を付けます。"});
   for (const it of TABLES.capitals){
     seq.push({lang:"ja", text:`${it.name}。意味は、${it.tip}。点は、${cellToJa(it.cells)}。`});
   }
@@ -558,7 +604,7 @@ function buildExplainCapitals(){
 
 function buildExplainNumbers(){
   const seq = [];
-  seq.push({lang:"ja", text:"表8-5-3。数字です。数字は、数符を付けてから書きます。"});
+  seq.push({lang:"ja", text:"表8の5の3。数字です。数字は、数符を付けてから書きます。"});
   seq.push({lang:"ja", text:`数符は、${cellToJa(UEB.numberPrefix)}です。`});
   seq.push({lang:"ja", text:"数字の1から0は、aからjと同じ形です。英語→点の順でいきます。"});
   for (const d of TABLES.digits){
@@ -575,7 +621,7 @@ function buildExplainNumbers(){
 
 function buildExplainPunctuation(){
   const seq = [];
-  seq.push({lang:"ja", text:"表8-5-4。句読符です。位置と順番、前後のスペースは、原則として墨字どおり。"});
+  seq.push({lang:"ja", text:"表8の5の4。句読符です。位置と順番、前後のスペースは、原則として墨字どおり。"});
   seq.push({lang:"ja", text:"超重要。英語点字のピリオドの後は、1マスだけあけます。日本語点字みたいに2マスじゃありません。"});
   seq.push({lang:"ja", text:"表の主なものを、英語→点の順で全部言います。"});
   for (const p of TABLES.punctuation){
@@ -595,7 +641,7 @@ function buildExplainContractionIntro(){
 
 function buildExplainStage1(){
   const seq = [];
-  seq.push({lang:"ja", text:"表8-5-5。段階1。一マスで語全体を表すしゅくやくです。ここは頻出。表の全部を読むよ。"});
+  seq.push({lang:"ja", text:"表8の5の5。段階1。一マスで語全体を表すしゅくやくです。ここは頻出。表の全部を読むよ。"});
   seq.push({lang:"ja", text:"(a) アルファベットしゅくやく語。"});
   for (const it of TABLES.stage1a){
     seq.push(...explainCellAfterEnglish(it.word, [it.dots]));
@@ -614,8 +660,8 @@ function buildExplainStage1(){
 
 function buildExplainStage2(){
   const seq = [];
-  seq.push({lang:"ja", text:"表8-5-6。段階2。二マスで、1語全体または語の部分を表すしゅくやく。ここは頭字しゅくやくが中心です。"});
-  seq.push({lang:"ja", text:"基本形。2マスで、1マス目は5の点。2マス目は頭文字の形。表の全部を読むよ。"});
+  seq.push({lang:"ja", text:"表8の5の6。段階2。二マスで、1語全体または語の部分を表すしゅくやく。ここは頭字しゅくやくが中心です。"});
+  seq.push({lang:"ja", text:"基本形。2マスで、1マス目は5の点のタイプです。また、2マス目は頭文字の形になります。"});
   for (const it of TABLES.stage2dot5){
     let secondDots;
     if (it.second==="the") secondDots = UEB.theWord;
@@ -626,7 +672,7 @@ function buildExplainStage2(){
     else secondDots = UEB.letterDots[it.second] || [];
     seq.push(...explainCellAfterEnglish(it.word, [[5], secondDots]));
   }
-  seq.push({lang:"ja", text:"次。1マス目が4と5の点のタイプ。表の全部。"});
+  seq.push({lang:"ja", text:"次に、2マスで、1マス目が4と5の点のタイプと組み合わせるケースです。"});
   for (const it of TABLES.stage2dot45){
     let secondDots;
     if (it.second==="the") secondDots = UEB.theWord;
@@ -635,39 +681,47 @@ function buildExplainStage2(){
     else secondDots = UEB.letterDots[it.second] || [];
     seq.push(...explainCellAfterEnglish(it.word, [[4,5], secondDots]));
   }
+  seq.push({lang:"ja", text:"最後に、2マスで、1マス目が4と5と6の点のタイプと組み合わせるケースです。"});
+  for (const it of TABLES.stage2dot456){
+    seq.push(...explainCellAfterEnglish(it.word, it.cells));
+  }
   return seq;
 }
 
 function buildExplainStage3(){
   const seq = [];
-  seq.push({lang:"ja", text:"表8-5-7。段階3。語の部分を表すしゅくやくです。表の項目を全部、英語から点の順で言います。"});
-  seq.push({lang:"ja", text:"まず、4、5、6の点と組み合わせるもの。"});
-  for (const it of TABLES.stage3_456){
-    seq.push(...explainCellAfterEnglish(it.word, it.cells));
-  }
-  seq.push({lang:"ja", text:"次に、きょうしゅくやく部。語の中の、つづりのかたまりを1マスで表します。"});
+  seq.push({lang:"ja", text:"表8の5の7。段階3。語の部分を表すしゅくやくです。表の項目を全部、英語から点の順で言います。"});
+  seq.push({lang:"ja", text:"まず、きょうしゅくやく部。語の中の、つづりのかたまりを1マスで表します。"});
   for (const it of TABLES.stage3_strongGroups){
-    seq.push({lang:"en", text: it.part});
+    // ★ここがポイント：ch/gh/sh... は日本語（シーエイチ等）で読み上げる
+    seq.push(speakTokenSmart(it.part));
     let extra = it.rule ? `。注意。${it.rule}。` : "。";
     seq.push({lang:"ja", text: `は、${dotsToJa(it.dots)}です${extra}`});
   }
+
   seq.push({lang:"ja", text:"次に、下がりしゅくやく部。en と in。"});
   for (const it of TABLES.stage3_lowerGroups){
-    seq.push({lang:"en", text: it.part});
+    // ★en/in も日本語（イーエヌ/アイエヌ）で読み上げる
+    seq.push(speakTokenSmart(it.part));
     seq.push({lang:"ja", text: `は、${dotsToJa(it.dots)}です。`});
   }
+
   seq.push({lang:"ja", text:"最後に、まつじしゅくやく部。語とうには使えない、語の終わり側のかたまりです。まず4と6の点と組み合わせるもの。"});
   for (const it of TABLES.stage3_finalGroups_46){
     const second = UEB.letterDots[it.then] || [];
-    seq.push({lang:"en", text: it.part});
+    // ★ound/ance... は日本語（オウンド/アンス等）で読み上げる
+    seq.push(speakTokenSmart(it.part));
     seq.push({lang:"ja", text: `は、2マスで、1マス目は${dotsToJa(it.dots)}、2マス目は${dotsToJa(second)}です。`});
   }
+
   seq.push({lang:"ja", text:"次に5と6の点と組み合わせるもの。"});
   for (const it of TABLES.stage3_finalGroups_56){
     const second = UEB.letterDots[it.then] || [];
-    seq.push({lang:"en", text: it.part});
+    // ★ence/tion... も日本語（エンス/ション等）で読み上げる
+    seq.push(speakTokenSmart(it.part));
     seq.push({lang:"ja", text: `は、2マスで、1マス目は${dotsToJa(it.dots)}、2マス目は${dotsToJa(second)}です。`});
   }
+
   seq.push({lang:"ja", text:"ルールの要点。しゅくやくは、複合語の要素をまたいで使えません。そして、2通りあるときは、原則マス数が少ない方。マス数が同じなら強い形を優先。"});
   return seq;
 }
@@ -698,7 +752,7 @@ function buildExplainShortforms(list, title){
 
 function buildExplainLowerWordsigns(){
   const seq = [];
-  seq.push({lang:"ja", text:"表8-5-10。段階6。下がり記号で語全体を表すしゅくやくです。表の語を全部、英語→点。"});
+  seq.push({lang:"ja", text:"表8の5の10。段階6。下がり記号で語全体を表すしゅくやくです。表の語を全部、英語→点。"});
   for (const it of TABLES.lowerWordsigns){
     seq.push(...explainCellAfterEnglish(it.word, [it.dots]));
   }
@@ -709,8 +763,9 @@ function buildExplainLowerWordsigns(){
 
 function buildExplainLowerGroupsigns(){
   const seq = [];
-  seq.push({lang:"ja", text:"表8-5-11。段階7。下がり記号で語の部分を表すしゅくやくです。表の項目を全部、英語→点。"});
+  seq.push({lang:"ja", text:"表8の5の11。段階7。下がり記号で語の部分を表すしゅくやくです。表の項目を全部、英語→点。"});
   for (const it of TABLES.lowerGroupsigns){
+    // con/dis 等は普通に英語でOK（必要なら SPECIAL_TTS_JA に追加可能）
     seq.push({lang:"en", text: it.part});
     seq.push({lang:"ja", text:`は、${dotsToJa(it.dots)}。使う場所は、${it.where}です。`});
   }
@@ -720,7 +775,7 @@ function buildExplainLowerGroupsigns(){
 
 function buildExplainItalics(){
   const seq = [];
-  seq.push({lang:"ja", text:"表8-5-12。書体。特にイタリック体（斜体）です。英語では強調や外国語でよく出ます。"});
+  seq.push({lang:"ja", text:"表8の5の12。書体。特にイタリック体（斜体）です。英語では強調や外国語でよく出ます。"});
   seq.push({lang:"ja", text:`イタリック単語符は、${cellToJa(UEB.italicWord)}。1語だけ斜体のときに前に付けます。`});
   seq.push({lang:"ja", text:`イタリックパッセージ符は、${cellToJa(UEB.italicPassage)}。斜体が3語以上続くとき、最初に付けます。`});
   seq.push({lang:"ja", text:`イタリック終止符は、${cellToJa(UEB.italicTerm)}。パッセージの終わりに付けます。`});
@@ -730,7 +785,7 @@ function buildExplainItalics(){
 
 function buildExplainCurrency(){
   const seq = [];
-  seq.push({lang:"ja", text:"表8-5-13。貨幣単位などの記号です。"});
+  seq.push({lang:"ja", text:"表8の5の13。貨幣単位などの記号です。"});
   seq.push({lang:"ja", text:"まず、表にある主な記号を全部。英語（または日本語名）→点の順でいきます。"});
   for (const it of TABLES.currencySymbols){
     seq.push({lang:"en", text: it.en});
@@ -746,7 +801,7 @@ function buildExplainCurrency(){
 
 function buildExplainModifiers(){
   const seq = [];
-  seq.push({lang:"ja", text:"表8-5-14。修飾符。アクセント記号などです。英語の文章でも外来語で出ます。表の主なものを全部言うよ。"});
+  seq.push({lang:"ja", text:"表8の5の14。修飾符。アクセント記号などです。英語の文章でも外来語で出ます。表の主なものを全部言うよ。"});
   for (const it of TABLES.modifiers){
     seq.push({lang:"en", text: it.en});
     seq.push({lang:"ja", text: `${it.nameJa}は、${cellToJa(it.cells)}です。`});
@@ -757,7 +812,7 @@ function buildExplainModifiers(){
 
 function buildExplainGaiji(){
   const seq = [];
-  seq.push({lang:"ja", text:"表8-5-15。外字符と外国語引用符。日本語の文章の中でアルファベットを書くときは、外字符を前に付けます。"});
+  seq.push({lang:"ja", text:"表8の5の15。外字符と外国語引用符。日本語の文章の中でアルファベットを書くときは、外字符を前に付けます。"});
   for (const it of TABLES.gaiji){
     seq.push({lang:"en", text: it.en});
     seq.push({lang:"ja", text: `${it.nameJa}は、${cellToJa(it.cells)}です。`});
@@ -769,7 +824,7 @@ function buildExplainGaiji(){
 
 function buildExplainPhonetic(){
   const seq = [];
-  seq.push({lang:"ja", text:"表8-5-16。発音記号。これはUEBそのものではなく、万国音標文字の点字体系です。"});
+  seq.push({lang:"ja", text:"表8の5の16。発音記号。これはUEBそのものではなく、万国音標文字の点字体系です。"});
   seq.push({lang:"ja", text:"表の記号を、必要なものから言います。"});
   for (const it of TABLES.phonetic){
     seq.push({lang:"en", text: it.en});
@@ -826,8 +881,8 @@ function buildLesson(id){
   else if (id==="6-1"){ seq.push(...buildExplainStage1()); }
   else if (id==="6-2"){ seq.push(...buildExplainStage2()); }
   else if (id==="6-3"){ seq.push(...buildExplainStage3()); }
-  else if (id==="6-4"){ seq.push(...buildExplainShortforms(TABLES.shortform1, "表8-5-8。段階4")); }
-  else if (id==="6-5"){ seq.push(...buildExplainShortforms(TABLES.shortform2, "表8-5-9。段階5")); }
+  else if (id==="6-4"){ seq.push(...buildExplainShortforms(TABLES.shortform1, "表8の5の8。段階4")); }
+  else if (id==="6-5"){ seq.push(...buildExplainShortforms(TABLES.shortform2, "表8の5の9。段階5")); }
   else if (id==="6-6"){ seq.push(...buildExplainLowerWordsigns()); }
   else if (id==="6-7"){ seq.push(...buildExplainLowerGroupsigns()); }
   else if (id==="7"){ seq.push(...buildExplainItalics()); }
@@ -933,8 +988,4 @@ document.addEventListener("click", async (e)=>{
 setStatus("待機中");
 </script>
 </body>
-
 </html>
-
-
-
