@@ -108,11 +108,11 @@ function normalizeJapaneseForSpeech(text){
   text = text.replace(/例。/g, "たとえば、");
   text = text.replace(/。dad。face。/gi, "。たとえば、dad。つぎに、face。");
 
-  text = text.replace(/1語/g, "１語（いちご）");
-  text = text.replace(/2語/g, "２語（にご）");
-  text = text.replace(/3語/g, "３語（さんご）");
-  text = text.replace(/1マス/g, "１マス（いちます）");
-  text = text.replace(/2マス/g, "２マス（にます）");
+  text = text.replace(/1語/g, "いちご");
+  text = text.replace(/2語/g, "にご");
+  text = text.replace(/3語/g, "さんご");
+  text = text.replace(/1マス/g, "いちます");
+  text = text.replace(/2マス/g, "にます");
 
   text = text.replace(/。次。/g, "。つぎです。");
   text = text.replace(/次。/g, "つぎです。");
@@ -188,8 +188,8 @@ const UEB = {
     {nameJa:"セミコロン", nameEn:"semicolon", cells:[[2,3]]},
     {nameJa:"コロン", nameEn:"colon", cells:[[2,5]]},
     {nameJa:"ピリオド", nameEn:"period", cells:[[2,5,6]]},
-    {nameJa:"感嘆符", nameEn:"exclamation mark", cells:[[2,3,5]]},
-    {nameJa:"疑問符", nameEn:"question mark", cells:[[2,3,6]]},
+    {nameJa:"かんたんふ", nameEn:"exclamation mark", cells:[[2,3,5]]},
+    {nameJa:"ぎもんふ", nameEn:"question mark", cells:[[2,3,6]]},
     {nameJa:"アポストロフィ", nameEn:"apostrophe", cells:[[3]]},
     {nameJa:"ハイフン", nameEn:"hyphen", cells:[[3,6]]},
     {nameJa:"ダッシュ", nameEn:"dash", cells:[[6],[3,6]]},
@@ -199,10 +199,10 @@ const UEB = {
     {nameJa:"丸カッコ（閉じ）", nameEn:"right parenthesis", cells:[[3,4,5]]},
     {nameJa:"角カッコ（開き）", nameEn:"left bracket", cells:[[4,6],[1,2,6]]},
     {nameJa:"角カッコ（閉じ）", nameEn:"right bracket", cells:[[4,6],[3,4,5]]},
-    {nameJa:"ダブルコーテーション（開き）", nameEn:"opening double quotation", cells:[[2,3,6]]},
-    {nameJa:"ダブルコーテーション（閉じ）", nameEn:"closing double quotation", cells:[[3,5,6]]},
-    {nameJa:"シングルコーテーション（開き）", nameEn:"opening single quotation", cells:[[6],[2,3,6]]},
-    {nameJa:"シングルコーテーション（閉じ）", nameEn:"closing single quotation", cells:[[6],[3]]}
+    {nameJa:"ダブルコーテーション（開始文字）", nameEn:"opening double quotation", cells:[[2,3,6]]},
+    {nameJa:"ダブルコーテーション（終了文字）", nameEn:"closing double quotation", cells:[[3,5,6]]},
+    {nameJa:"シングルコーテーション（開始文字）", nameEn:"opening single quotation", cells:[[6],[2,3,6]]},
+    {nameJa:"シングルコーテーション（終了文字）", nameEn:"closing single quotation", cells:[[6],[3]]}
   ],
 
   italicWord: [[4,6]],
@@ -231,10 +231,10 @@ const TABLES = {
     ...("uvwxyz").split("").map(ch=>({ch}))
   ],
   capitals: [
-    {name:"大文字符", en:"capitals prefix", cells:UEB.capPrefix, tip:"次の1文字だけ大文字"},
-    {name:"大文字単語符", en:"capitals word indicator", cells:UEB.capWord, tip:"語全体が大文字"},
+    {name:"大文字ふ", en:"capitals prefix", cells:UEB.capPrefix, tip:"次の1文字だけ大文字"},
+    {name:"大文字たんごふ", en:"capitals word indicator", cells:UEB.capWord, tip:"語全体が大文字"},
     {name:"大文字パッセージ符", en:"capitals passage indicator", cells:UEB.capPassage, tip:"大文字の語が3語以上続くとき"},
-    {name:"大文字終止符", en:"capitals terminator", cells:UEB.capTerm, tip:"パッセージの終わり"}
+    {name:"大文字しゅうし符", en:"capitals terminator", cells:UEB.capTerm, tip:"パッセージの終わり"}
   ],
   digits: [
     {digit:1, ch:"a"}, {digit:2, ch:"b"}, {digit:3, ch:"c"}, {digit:4, ch:"d"}, {digit:5, ch:"e"},
@@ -243,7 +243,7 @@ const TABLES = {
   digitRelated: [
     {name:"数符", en:"numeric prefix", cells:UEB.numberPrefix, tip:"数字の前に付ける"},
     {name:"小数点（ピリオドと同形）", en:"period", cells:UEB.period, tip:"3.14 の点字で使う"},
-    {name:"桁区切りのコンマ", en:"comma", cells:UEB.comma, tip:"50,000 の区切り"}
+    {name:"けた区切りのコンマ", en:"comma", cells:UEB.comma, tip:"50,000 の区切り"}
   ],
   punctuation: UEB.punct,
 
@@ -600,11 +600,11 @@ function buildExplainStage1(){
   for (const it of TABLES.stage1a){
     seq.push(...explainCellAfterEnglish(it.word, [it.dots]));
   }
-  seq.push({lang:"ja", text:"(b) 強しゅくやく。語全体を表す用法。"});
+  seq.push({lang:"ja", text:"(b) きょうしゅくやく。語全体を表す用法。"});
   for (const it of TABLES.stage1b){
     seq.push(...explainCellAfterEnglish(it.word, [it.dots]));
   }
-  seq.push({lang:"ja", text:"(c) 強しゅくやく語。これも語全体で使えます。"});
+  seq.push({lang:"ja", text:"(c) きょうしゅくやく語。これも語全体で使えます。"});
   for (const it of TABLES.stage1c){
     seq.push(...explainCellAfterEnglish(it.word, [it.dots]));
   }
@@ -640,12 +640,12 @@ function buildExplainStage2(){
 
 function buildExplainStage3(){
   const seq = [];
-  seq.push({lang:"ja", text:"表8-5-7。段階3。語の部分を表すしゅくやくです。表の項目を全部、英語→点の順で言います。"});
+  seq.push({lang:"ja", text:"表8-5-7。段階3。語の部分を表すしゅくやくです。表の項目を全部、英語から点の順で言います。"});
   seq.push({lang:"ja", text:"まず、4、5、6の点と組み合わせるもの。"});
   for (const it of TABLES.stage3_456){
     seq.push(...explainCellAfterEnglish(it.word, it.cells));
   }
-  seq.push({lang:"ja", text:"次に、強しゅくやく部。語の中の、つづりのかたまりを1マスで表します。"});
+  seq.push({lang:"ja", text:"次に、きょうしゅくやく部。語の中の、つづりのかたまりを1マスで表します。"});
   for (const it of TABLES.stage3_strongGroups){
     seq.push({lang:"en", text: it.part});
     let extra = it.rule ? `。注意。${it.rule}。` : "。";
@@ -656,7 +656,7 @@ function buildExplainStage3(){
     seq.push({lang:"en", text: it.part});
     seq.push({lang:"ja", text: `は、${dotsToJa(it.dots)}です。`});
   }
-  seq.push({lang:"ja", text:"最後に、末字しゅくやく部。語頭には使えない、語の終わり側のかたまりです。まず4と6の点と組み合わせるもの。"});
+  seq.push({lang:"ja", text:"最後に、まつじしゅくやく部。語とうには使えない、語の終わり側のかたまりです。まず4と6の点と組み合わせるもの。"});
   for (const it of TABLES.stage3_finalGroups_46){
     const second = UEB.letterDots[it.then] || [];
     seq.push({lang:"en", text: it.part});
@@ -935,5 +935,6 @@ setStatus("待機中");
 </body>
 
 </html>
+
 
 
