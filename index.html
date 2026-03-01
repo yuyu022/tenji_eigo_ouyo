@@ -36,6 +36,18 @@
 
 <body>
 <div class="wrap" id="app">
+
+
+  <!-- ################### バージョン記載箇所 ###################### -->
+  <div class="version" id="versionLabel">v1.0.1（作成：2026/03/01 23:55）</div>
+  <!-- ################### バージョン記載箇所 ###################### -->
+
+
+
+
+
+
+
   <div class="title">点字英語の応用（縮約）</div>
   <p class="hint">
     使い方：ボタンを押す → すぐ説明開始。<br>
@@ -98,10 +110,8 @@ const PARAMS = {
 
 /* =========================================================
   【追加】縮約の発音を日本語（ローマ字読み／スペル読み）で出したいもの
-  - ここを書き換えるだけで、音声出力を調整できます
 ========================================================= */
 const SPECIAL_TTS_JA = {
-  // 1マスで語の部分（強い形）など：聞き取りづらいのでスペル読み（例：ch→シーエイチ）
   "ch": "シーエイチ",
   "gh": "ジーエイチ",
   "sh": "エスエイチ",
@@ -129,13 +139,11 @@ const SPECIAL_TTS_JA = {
   "ment": "エムイーエヌティ―",
   "ity": "アイティーワイ",
 
-  // 2マスで語末側のかたまり：日本語（ローマ字読み寄り）で言う
   "be": "ビー",
   "con": "シーオーエヌ",
   "dis": "ディーアイエス"
 };
 
-// 「英語セグメント」を作るときに、必要なら日本語セグメントに差し替える
 function speakTokenSmart(text){
   const key = String(text || "").trim().toLowerCase();
   if (SPECIAL_TTS_JA[key]) return { lang:"ja", text: SPECIAL_TTS_JA[key] };
@@ -206,7 +214,37 @@ function cellToJa(cells){
   const parts = cells.map((d,i)=>`${i+1}マス目は${dotsToJa(d)}`);
   return `${cells.length}マスで、${parts.join("。")}`;
 }
+// ★追加：cells を「[[1,3],[3,4,5]]」でも「["1,3","3,4,5"]」でも受け取れるように正規化
+function normalizeCells(cells){
+  if (!cells) return [];
+  // すでに [[...],[...]] ならそのまま
+  if (Array.isArray(cells) && cells.length && Array.isArray(cells[0])) return cells;
 
+  // ["1,3","345"] みたいな文字列配列を [[1,3],[3,4,5]] に変換
+  if (Array.isArray(cells) && (cells.length===0 || typeof cells[0] === "string")){
+    return cells.map(s=>{
+      const t = String(s || "").trim();
+      if (!t) return [];
+      // "3,4,5" / "3 4 5" / "345" どれでもOK
+      const nums = t.includes(",") || /\s/.test(t)
+        ? t.split(/[,\s]+/).filter(Boolean).map(Number)
+        : t.split("").map(Number);
+      return nums.filter(n => Number.isFinite(n) && n>=1 && n<=6);
+    });
+  }
+
+  return [];
+}
+
+// ★追加：cellsFrom（例 "ab"）→ a,b の点にするだけ（難しい解析はしない）
+function lettersToCells(src){
+  const s = String(src || "").toLowerCase().replace(/[^a-z]/g,"");
+  const out = [];
+  for (const ch of s){
+    if (UEB.letterDots[ch]) out.push(UEB.letterDots[ch]);
+  }
+  return out;
+}
 /* =========================================================
   UEB 基本
 ========================================================= */
@@ -241,10 +279,10 @@ const UEB = {
     {nameJa:"ダッシュ", nameEn:"dash", cells:[[6],[3,6]]},
     {nameJa:"エリプシス", nameEn:"ellipsis", cells:[[2,5,6],[2,5,6],[2,5,6]]},
     {nameJa:"スラッシュ", nameEn:"slash", cells:[[4,5,6],[2,5,6]]},
-    {nameJa:"丸カッコ（開き）", nameEn:"left parenthesis", cells:[[1,2,6]]},
-    {nameJa:"丸カッコ（閉じ）", nameEn:"right parenthesis", cells:[[3,4,5]]},
-    {nameJa:"角カッコ（開き）", nameEn:"left bracket", cells:[[4,6],[1,2,6]]},
-    {nameJa:"角カッコ（閉じ）", nameEn:"right bracket", cells:[[4,6],[3,4,5]]},
+    {nameJa:"丸カッコ（開始文字）", nameEn:"left parenthesis", cells:[[1,2,6]]},
+    {nameJa:"丸カッコ（終了文字）", nameEn:"right parenthesis", cells:[[3,4,5]]},
+    {nameJa:"角カッコ（開始文字）", nameEn:"left bracket", cells:[[4,6],[1,2,6]]},
+    {nameJa:"角カッコ（終了文字）", nameEn:"right bracket", cells:[[4,6],[3,4,5]]},
     {nameJa:"ダブルコーテーション（開始文字）", nameEn:"opening double quotation", cells:[[2,3,6]]},
     {nameJa:"ダブルコーテーション（終了文字）", nameEn:"closing double quotation", cells:[[3,5,6]]},
     {nameJa:"シングルコーテーション（開始文字）", nameEn:"opening single quotation", cells:[[6],[2,3,6]]},
@@ -268,7 +306,67 @@ const UEB = {
 };
 
 /* =========================================================
-  表データ（あなたの最新版のまま）
+  ★追加：cellsFrom 文字列 → cells:[[dots],[dots]...] へ統一変換
+  - shortform1/2 を他ロジックと同じ形で扱うための変換器
+========================================================= */
+function buildTokenDotsMap(){
+  // 1マスのグループサイン等（必要分だけ）
+  return {
+    // 強い形のグループサイン（段階3に合わせる）
+    "ch":[1,6],
+    "gh":[1,2,6],
+    "sh":[1,4,6],
+    "th":[1,4,5,6],
+    "wh":[1,5,6],
+    "ed":[1,2,4,6],
+    "er":[1,2,4,5,6],
+    "ou":[1,2,5,6],
+    "ow":[2,4,6],
+    "st":UEB.stGroup,
+    "ar":[3,4,5],
+    "ing":[3,4,6],
+    "en":[2,6],
+    "in":UEB.inContraction,
+
+    // しゅくやく語（単独の語全体サイン）も shortform の骨組みに出ることがあるので一応
+    "the":UEB.theWord,
+    "and":UEB.andWord,
+  };
+}
+
+function cellsFromToCells(src){
+  const s = String(src || "").toLowerCase().replace(/[^a-z]/g,"");
+  if (!s) return [];
+
+  const tokenDots = buildTokenDotsMap();
+
+  // できるだけ長いトークンからマッチ（例: ing / th / ch など）
+  const tokens = Object.keys(tokenDots).sort((a,b)=>b.length-a.length);
+
+  const out = [];
+  let i = 0;
+  while (i < s.length){
+    let matched = null;
+    for (const t of tokens){
+      if (s.startsWith(t, i)){
+        matched = t;
+        break;
+      }
+    }
+    if (matched){
+      out.push(tokenDots[matched]);
+      i += matched.length;
+      continue;
+    }
+    const ch = s[i];
+    if (UEB.letterDots[ch]) out.push(UEB.letterDots[ch]);
+    i += 1;
+  }
+  return out;
+}
+
+/* =========================================================
+  表データ（shortform1/2 を「cells:」で統一）
 ========================================================= */
 const TABLES = {
   alphabet: [
@@ -408,73 +506,95 @@ const TABLES = {
     {part:"ity",  dots:[5,6], then:"y"}
   ],
 
+  // ★ここを統一：cellsFrom → cells を自動生成して持たせる
   shortform1: [
-    {word:"about", cellsFrom:"ab"},
-    {word:"according", cellsFrom:"ac"},
-    {word:"after", cellsFrom:"af"},
-    {word:"again", cellsFrom:"ag"},
-    {word:"also", cellsFrom:"al"},
-    {word:"because", cellsFrom:"because"},
-    {word:"before", cellsFrom:"before"},
-    {word:"behind", cellsFrom:"behind"},
-    {word:"below", cellsFrom:"below"},
-    {word:"beneath", cellsFrom:"beneath"},
-    {word:"beside", cellsFrom:"beside"},
-    {word:"between", cellsFrom:"between"},
-    {word:"beyond", cellsFrom:"beyond"},
-    {word:"blind", cellsFrom:"bl"},
-    {word:"either", cellsFrom:"ei"},
-    {word:"friend", cellsFrom:"fr"},
-    {word:"children", cellsFrom:"children"},
-    {word:"could", cellsFrom:"cd"},
-    {word:"first", cellsFrom:"first"},
-    {word:"good", cellsFrom:"gd"},
-    {word:"him", cellsFrom:"hm"},
-    {word:"its", cellsFrom:"xs"},
-    {word:"letter", cellsFrom:"lr"},
-    {word:"little", cellsFrom:"ll"},
-    {word:"much", cellsFrom:"much"},
-    {word:"must", cellsFrom:"must"},
-    {word:"paid", cellsFrom:"pd"},
-    {word:"quick", cellsFrom:"qk"},
-    {word:"said", cellsFrom:"sd"},
-    {word:"should", cellsFrom:"should"},
-    {word:"such", cellsFrom:"such"},
-    {word:"today", cellsFrom:"td"},
-    {word:"tomorrow", cellsFrom:"tm"},
-    {word:"tonight", cellsFrom:"tn"},
-    {word:"would", cellsFrom:"wd"},
-    {word:"your", cellsFrom:"yr"},
-    {word:"above", cellsFrom:"abv"},
-    {word:"afternoon", cellsFrom:"afn"},
-    {word:"afterward", cellsFrom:"afw"},
-    {word:"against", cellsFrom:"against"},
-    {word:"braille", cellsFrom:"brl"},
-    {word:"great", cellsFrom:"grt"},
-    {word:"together", cellsFrom:"tgr"}
-  ],
+    {word:"about", cells:[[1],[1,2]]},
+    {word:"according", cells:[[1],[1,4]]},
+    {word:"after", cells:[[1],[1,2,4]]},
+    {word:"again", cells:[[1],[1,2,4,5]]},
+    {word:"also", cells:[[1],[1,2,3]]},
+    {word:"because", cells:[[2,3],[1,4]]},
+    {word:"before", cells:[[2,3],[1,2,4]]},
+    {word:"behind", cells:[[2,3],[1,2,5]]},
+    {word:"below", cells:[[2,3],[1,2,3]]},
+    {word:"beneath", cells:[[2,3],[1,3,4,5]]},
+    {word:"beside", cells:[[2,3],[2,3,4]]},
+    {word:"between", cells:[[2,3],[2,3,4,5]]},
+    {word:"beyond", cells:[[2,3],[1,3,4,5,6]]},
+    {word:"blind", cells:[[1,2],[1,2,3]]},
+    {word:"either", cells:[[1,5],[2,4]]},
+    {word:"friend", cells:[[1,2,4],[1,2,3,5]]},
+
+    {word:"children", cells:[[1,4],[1,3,4,5]]},
+    {word:"could", cells:[[1,4],[1,4,5]]},
+    {word:"first", cells:[[1,2,4],[3,4]]},          // f + st(3,4)
+    {word:"good", cells:[[1,2,4,5],[1,4,5]]},
+    {word:"him", cells:[[1,2,5],[1,3,4]]},
+    {word:"its", cells:[[1,3,4,6],[2,3,4]]},
+    {word:"letter", cells:[[1,2,3],[1,2,3,5]]},
+    {word:"little", cells:[[1,2,3],[1,2,3]]},
+    {word:"much", cells:[[1,3,4],[1,6]]},           // m + ch(1,6)
+    {word:"must", cells:[[1,3,4],[3,4]]},            // m + st(3,4)
+    {word:"paid", cells:[[1,2,3,4],[1,4,5]]},
+    {word:"quick", cells:[[1,2,3,4,5],[1,3]]},
+    {word:"said", cells:[[2,3,4],[1,4,5]]},
+    {word:"should", cells:[[1,4,6],[1,4,5]]},        // sh(1,4,6) + d
+
+    {word:"such", cells:[[2,3,4],[1,6]]},            // s + ch(1,6)
+    {word:"today", cells:[[2,3,4,5],[1,4,5]]},
+    {word:"tomorrow", cells:[[2,3,4,5],[1,3,4]]},
+    {word:"tonight", cells:[[2,3,4,5],[1,3,4,5]]},
+    {word:"would", cells:[[2,4,5,6],[1,4,5]]},
+    {word:"your", cells:[[1,3,4,5,6],[1,2,3,5]]},
+
+    {word:"above", cells:[[1],[1,2],[1,2,3,6]]},
+    {word:"afternoon", cells:[[1],[1,2,4],[1,3,4,5]]},
+    {word:"afterward", cells:[[1],[1,2,4],[2,4,5,6]]},
+    {word:"against", cells:[[1],[1,2,4,5],[3,4]]},   // a + g + st(3,4)
+    {word:"braille", cells:[[1,2],[1,2,3,5],[1,2,3]]},
+    {word:"great", cells:[[1,2,4,5],[1,2,3,5],[2,3,4,5]]},
+    {word:"together", cells:[[2,3,4,5],[1,2,4,5],[1,2,3,5]]},
+
+    // ★例：あとで手で直したい時はこう書けます（文字列でもOK）
+    // {word:"about", cells:["1", "1,2"]},
+  ].map(it => ({
+    ...it,
+    // ★cells が書いてあればそれ優先（文字列でも配列でもOK）
+    cells: it.cells ? normalizeCells(it.cells) : lettersToCells(it.cellsFrom)
+  })),
+
   shortform2: [
-    {word:"across", cellsFrom:"acr"},
-    {word:"almost", cellsFrom:"alm"},
-    {word:"already", cellsFrom:"alr"},
-    {word:"always", cellsFrom:"alw"},
-    {word:"altogether", cellsFrom:"alt"},
-    {word:"although", cellsFrom:"although"},
-    {word:"immediate", cellsFrom:"imm"},
-    {word:"necessary", cellsFrom:"nec"},
-    {word:"neither", cellsFrom:"nei"},
-    {word:"perhaps", cellsFrom:"peh"},
-    {word:"myself", cellsFrom:"myf"},
-    {word:"yourself", cellsFrom:"yrf"},
-    {word:"himself", cellsFrom:"hmf"},
-    {word:"herself", cellsFrom:"herf"},
-    {word:"itself", cellsFrom:"xf"},
-    {word:"oneself", cellsFrom:"of"},
-    {word:"thyself", cellsFrom:"thyf"},
-    {word:"ourselves", cellsFrom:"orvs"},
-    {word:"yourselves", cellsFrom:"yrvs"},
-    {word:"themselves", cellsFrom:"hmvs"}
-  ],
+    {word:"across", cells:[[1],[1,4],[1,2,3,5]]},
+    {word:"almost", cells:[[1],[1,2,3],[1,3,4]]},
+    {word:"already", cells:[[1],[1,2,3],[1,2,3,5]]},
+    {word:"always", cells:[[1],[1,2,3],[2,4,5,6]]},
+    {word:"altogether", cells:[[1],[1,2,3],[2,3,4,5]]},
+
+    {word:"although", cells:[[1],[1,2,3],[1,4,5,6]]},       // sh型ではなく l + th 型
+    {word:"immediate", cells:[[2,4],[1,3,4],[1,3,4]]},
+    {word:"necessary", cells:[[1,3,4,5],[1,5],[1,4]]},
+    {word:"neither", cells:[[1,3,4,5],[1,5],[2,4]]},
+    {word:"perhaps", cells:[[1,2,3,4],[1,2,4,5,6],[1,2,5]]},
+
+    {word:"myself", cells:[[1,3,4],[1,3,4,5,6],[1,2,4]]},
+    {word:"yourself", cells:[[1,3,4,5,6],[1,2,3,5],[1,2,4]]},
+    {word:"himself", cells:[[1,2,5],[1,3,4],[1,2,4]]},
+    {word:"herself", cells:[[1,2,5],[1,2,4,5,6],[1,2,4]]},
+    {word:"itself", cells:[[1,3,4,6],[1,2,4]]},
+
+    {word:"oneself", cells:[[5],[1,3,5],[1,2,4]]},
+    {word:"thyself", cells:[[1,4,5,6],[1,3,4,5,6],[1,2,4]]},
+
+    {word:"ourselves", cells:[[1,2,5,6],[1,2,3,5],[1,2,3,6],[2,3,4]]},
+    {word:"yourselves", cells:[[1,3,4,5,6],[1,2,3,5],[1,2,3,6],[2,3,4]]},
+    {word:"themselves", cells:[[2,3,4,6],[1,3,4],[1,2,3,6],[2,3,4]]},
+
+    // ★例：あとで手で直したい時はこう書けます（文字列でもOK）
+    // {word:"about", cells:["1", "1,2"]},
+  ].map(it => ({
+    ...it,
+    cells: it.cells ? normalizeCells(it.cells) : lettersToCells(it.cellsFrom)
+  })),
 
   lowerWordsigns: [
     {word:"be", dots:[2,3]},
@@ -583,7 +703,7 @@ function explainCellAfterEnglish(english, cells){
 
 function buildExplainAlphabet(){
   const seq = [];
-  seq.push({lang:"ja", text:"表8の5の1。アルファベットです。1語はひと続き。語と語の間は1マスあけます。"});
+  seq.push({lang:"ja", text:"ひょう8の5の1。アルファベットです。1語はひと続き。語と語の間は1マスあけます。"});
   for (const row of TABLES.alphabet){
     const ch = row.ch;
     seq.push({lang:"en", text: ch});
@@ -594,7 +714,7 @@ function buildExplainAlphabet(){
 
 function buildExplainCapitals(){
   const seq = [];
-  seq.push({lang:"ja", text:"表8の5の2。大文字を示す記号です。何も付かなければ小文字。大文字にしたいときは、前に記号を付けます。"});
+  seq.push({lang:"ja", text:"ひょう8の5の2。大文字を示す記号です。何も付かなければ小文字。大文字にしたいときは、前に記号を付けます。"});
   for (const it of TABLES.capitals){
     seq.push({lang:"ja", text:`${it.name}。意味は、${it.tip}。点は、${cellToJa(it.cells)}。`});
   }
@@ -604,9 +724,9 @@ function buildExplainCapitals(){
 
 function buildExplainNumbers(){
   const seq = [];
-  seq.push({lang:"ja", text:"表8の5の3。数字です。数字は、数符を付けてから書きます。"});
+  seq.push({lang:"ja", text:"ひょう8の5の3。数字です。数字は、数符を付けてから書きます。"});
   seq.push({lang:"ja", text:`数符は、${cellToJa(UEB.numberPrefix)}です。`});
-  seq.push({lang:"ja", text:"数字の1から0は、aからjと同じ形です。英語→点の順でいきます。"});
+  seq.push({lang:"ja", text:"数字の1から0は、aからjと同じ形です。英語から点の順でいきます。"});
   for (const d of TABLES.digits){
     seq.push({lang:"en", text:String(d.digit)});
     seq.push({lang:"ja", text:`は、${dotsToJa(UEB.letterDots[d.ch])}です。`});
@@ -621,9 +741,9 @@ function buildExplainNumbers(){
 
 function buildExplainPunctuation(){
   const seq = [];
-  seq.push({lang:"ja", text:"表8の5の4。句読符です。位置と順番、前後のスペースは、原則として墨字どおり。"});
+  seq.push({lang:"ja", text:"ひょう8の5の4。句読符です。位置と順番、前後のスペースは、原則として墨字どおり。"});
   seq.push({lang:"ja", text:"超重要。英語点字のピリオドの後は、1マスだけあけます。日本語点字みたいに2マスじゃありません。"});
-  seq.push({lang:"ja", text:"表の主なものを、英語→点の順で全部言います。"});
+  seq.push({lang:"ja", text:"表の主なものを、英語から点の順で全部言います。"});
   for (const p of TABLES.punctuation){
     seq.push({lang:"en", text:p.nameEn});
     seq.push({lang:"ja", text:`${p.nameJa}は、${cellToJa(p.cells)}です。`});
@@ -641,7 +761,7 @@ function buildExplainContractionIntro(){
 
 function buildExplainStage1(){
   const seq = [];
-  seq.push({lang:"ja", text:"表8の5の5。段階1。一マスで語全体を表すしゅくやくです。ここは頻出。表の全部を読むよ。"});
+  seq.push({lang:"ja", text:"ひょう8の5の5。段階1。一マスで語全体を表すしゅくやくです。ここは頻出。表の全部を読むよ。"});
   seq.push({lang:"ja", text:"(a) アルファベットしゅくやく語。"});
   for (const it of TABLES.stage1a){
     seq.push(...explainCellAfterEnglish(it.word, [it.dots]));
@@ -660,7 +780,7 @@ function buildExplainStage1(){
 
 function buildExplainStage2(){
   const seq = [];
-  seq.push({lang:"ja", text:"表8の5の6。段階2。二マスで、1語全体または語の部分を表すしゅくやく。ここは頭字しゅくやくが中心です。"});
+  seq.push({lang:"ja", text:"ひょう8の5の6。段階2。二マスで、1語全体または語の部分を表すしゅくやく。ここは頭字しゅくやくが中心です。"});
   seq.push({lang:"ja", text:"基本形。2マスで、1マス目は5の点のタイプです。また、2マス目は頭文字の形になります。"});
   for (const it of TABLES.stage2dot5){
     let secondDots;
@@ -690,10 +810,9 @@ function buildExplainStage2(){
 
 function buildExplainStage3(){
   const seq = [];
-  seq.push({lang:"ja", text:"表8の5の7。段階3。語の部分を表すしゅくやくです。表の項目を全部、英語から点の順で言います。"});
+  seq.push({lang:"ja", text:"ひょう8の5の7。段階3。語の部分を表すしゅくやくです。表の項目を全部、英語から点の順で言います。"});
   seq.push({lang:"ja", text:"まず、きょうしゅくやく部。語の中の、つづりのかたまりを1マスで表します。"});
   for (const it of TABLES.stage3_strongGroups){
-    // ★ここがポイント：ch/gh/sh... は日本語（シーエイチ等）で読み上げる
     seq.push(speakTokenSmart(it.part));
     let extra = it.rule ? `。注意。${it.rule}。` : "。";
     seq.push({lang:"ja", text: `は、${dotsToJa(it.dots)}です${extra}`});
@@ -701,7 +820,6 @@ function buildExplainStage3(){
 
   seq.push({lang:"ja", text:"次に、下がりしゅくやく部。en と in。"});
   for (const it of TABLES.stage3_lowerGroups){
-    // ★en/in も日本語（イーエヌ/アイエヌ）で読み上げる
     seq.push(speakTokenSmart(it.part));
     seq.push({lang:"ja", text: `は、${dotsToJa(it.dots)}です。`});
   }
@@ -709,7 +827,6 @@ function buildExplainStage3(){
   seq.push({lang:"ja", text:"最後に、まつじしゅくやく部。語とうには使えない、語の終わり側のかたまりです。まず4と6の点と組み合わせるもの。"});
   for (const it of TABLES.stage3_finalGroups_46){
     const second = UEB.letterDots[it.then] || [];
-    // ★ound/ance... は日本語（オウンド/アンス等）で読み上げる
     seq.push(speakTokenSmart(it.part));
     seq.push({lang:"ja", text: `は、2マスで、1マス目は${dotsToJa(it.dots)}、2マス目は${dotsToJa(second)}です。`});
   }
@@ -717,7 +834,6 @@ function buildExplainStage3(){
   seq.push({lang:"ja", text:"次に5と6の点と組み合わせるもの。"});
   for (const it of TABLES.stage3_finalGroups_56){
     const second = UEB.letterDots[it.then] || [];
-    // ★ence/tion... も日本語（エンス/ション等）で読み上げる
     seq.push(speakTokenSmart(it.part));
     seq.push({lang:"ja", text: `は、2マスで、1マス目は${dotsToJa(it.dots)}、2マス目は${dotsToJa(second)}です。`});
   }
@@ -726,33 +842,29 @@ function buildExplainStage3(){
   return seq;
 }
 
+/* =========================================================
+  ★修正：shortform の説明を「cells」で統一（点番号を読む）
+========================================================= */
 function buildExplainShortforms(list, title){
   const seq = [];
-  seq.push({lang:"ja", text:`${title}。たんけい語は、省略形です。表の単語を全部、英語→点の順でいきます。`});
-  seq.push({lang:"ja", text:"たんけい語は、つづりを忘れやすいので、フルスペルも口で確認するのがコツです。"});
+  seq.push({lang:"ja", text:`${title}。たんけい語です。表の単語を全部、英語から点の順でいきます。`});
+
   for (const it of list){
     seq.push({lang:"en", text: it.word});
-    const src = it.cellsFrom;
-    const letters = (src || "").toLowerCase().replace(/[^a-z]/g,"").split("");
-    if (letters.length===0){
-      seq.push({lang:"ja", text:"は、教科書のたんけい語として覚える項目です。点の形は先生や教材と合わせて確認しよう。"});
-      continue;
+
+    const cells = normalizeCells(it.cells);
+    if (cells.length){
+      seq.push({lang:"ja", text:`は、${cellToJa(cells)}です。`});
+    } else {
+      seq.push({lang:"ja", text:"点の情報がありません。"});
     }
-    seq.push({lang:"ja", text:"点の説明。先頭の形を、1文字ずつ点で言うね。"});
-    for (const ch of letters){
-      if (UEB.letterDots[ch]){
-        seq.push({lang:"en", text: ch});
-        seq.push({lang:"ja", text:`は、${dotsToJa(UEB.letterDots[ch])}。`});
-      }
-    }
-    seq.push({lang:"ja", text:"この先の省略は、教科書どおりのたんけい語として覚えます。"});
   }
   return seq;
 }
 
 function buildExplainLowerWordsigns(){
   const seq = [];
-  seq.push({lang:"ja", text:"表8の5の10。段階6。下がり記号で語全体を表すしゅくやくです。表の語を全部、英語→点。"});
+  seq.push({lang:"ja", text:"ひょう8の5の10。段階6。下がり記号で語全体を表すしゅくやくです。表の語を全部、英語→点。"});
   for (const it of TABLES.lowerWordsigns){
     seq.push(...explainCellAfterEnglish(it.word, [it.dots]));
   }
@@ -763,9 +875,8 @@ function buildExplainLowerWordsigns(){
 
 function buildExplainLowerGroupsigns(){
   const seq = [];
-  seq.push({lang:"ja", text:"表8の5の11。段階7。下がり記号で語の部分を表すしゅくやくです。表の項目を全部、英語→点。"});
+  seq.push({lang:"ja", text:"ひょう8の5の11。段階7。下がり記号で語の部分を表すしゅくやくです。表の項目を全部、英語→点。"});
   for (const it of TABLES.lowerGroupsigns){
-    // con/dis 等は普通に英語でOK（必要なら SPECIAL_TTS_JA に追加可能）
     seq.push({lang:"en", text: it.part});
     seq.push({lang:"ja", text:`は、${dotsToJa(it.dots)}。使う場所は、${it.where}です。`});
   }
@@ -775,7 +886,7 @@ function buildExplainLowerGroupsigns(){
 
 function buildExplainItalics(){
   const seq = [];
-  seq.push({lang:"ja", text:"表8の5の12。書体。特にイタリック体（斜体）です。英語では強調や外国語でよく出ます。"});
+  seq.push({lang:"ja", text:"ひょう8の5の12。書体。特にイタリック体（斜体）です。英語では強調や外国語でよく出ます。"});
   seq.push({lang:"ja", text:`イタリック単語符は、${cellToJa(UEB.italicWord)}。1語だけ斜体のときに前に付けます。`});
   seq.push({lang:"ja", text:`イタリックパッセージ符は、${cellToJa(UEB.italicPassage)}。斜体が3語以上続くとき、最初に付けます。`});
   seq.push({lang:"ja", text:`イタリック終止符は、${cellToJa(UEB.italicTerm)}。パッセージの終わりに付けます。`});
@@ -785,8 +896,8 @@ function buildExplainItalics(){
 
 function buildExplainCurrency(){
   const seq = [];
-  seq.push({lang:"ja", text:"表8の5の13。貨幣単位などの記号です。"});
-  seq.push({lang:"ja", text:"まず、表にある主な記号を全部。英語（または日本語名）→点の順でいきます。"});
+  seq.push({lang:"ja", text:"ひょう8の5の13。貨幣単位などの記号です。"});
+  seq.push({lang:"ja", text:"まず、表にある主な記号を全部。英語（または日本語名）から点の順でいきます。"});
   for (const it of TABLES.currencySymbols){
     seq.push({lang:"en", text: it.en});
     seq.push({lang:"ja", text: `${it.nameJa}は、${cellToJa(it.cells)}です。`});
@@ -801,7 +912,7 @@ function buildExplainCurrency(){
 
 function buildExplainModifiers(){
   const seq = [];
-  seq.push({lang:"ja", text:"表8の5の14。修飾符。アクセント記号などです。英語の文章でも外来語で出ます。表の主なものを全部言うよ。"});
+  seq.push({lang:"ja", text:"ひょう8の5の14。修飾符。アクセント記号などです。英語の文章でも外来語で出ます。表の主なものを全部言うよ。"});
   for (const it of TABLES.modifiers){
     seq.push({lang:"en", text: it.en});
     seq.push({lang:"ja", text: `${it.nameJa}は、${cellToJa(it.cells)}です。`});
@@ -812,7 +923,7 @@ function buildExplainModifiers(){
 
 function buildExplainGaiji(){
   const seq = [];
-  seq.push({lang:"ja", text:"表8の5の15。外字符と外国語引用符。日本語の文章の中でアルファベットを書くときは、外字符を前に付けます。"});
+  seq.push({lang:"ja", text:"ひょう8の5の15。外字符と外国語引用符。日本語の文章の中でアルファベットを書くときは、外字符を前に付けます。"});
   for (const it of TABLES.gaiji){
     seq.push({lang:"en", text: it.en});
     seq.push({lang:"ja", text: `${it.nameJa}は、${cellToJa(it.cells)}です。`});
@@ -824,7 +935,7 @@ function buildExplainGaiji(){
 
 function buildExplainPhonetic(){
   const seq = [];
-  seq.push({lang:"ja", text:"表8の5の16。発音記号。これはUEBそのものではなく、万国音標文字の点字体系です。"});
+  seq.push({lang:"ja", text:"ひょう8の5の16。発音記号。これはUEBそのものではなく、万国音標文字の点字体系です。"});
   seq.push({lang:"ja", text:"表の記号を、必要なものから言います。"});
   for (const it of TABLES.phonetic){
     seq.push({lang:"en", text: it.en});
@@ -881,8 +992,8 @@ function buildLesson(id){
   else if (id==="6-1"){ seq.push(...buildExplainStage1()); }
   else if (id==="6-2"){ seq.push(...buildExplainStage2()); }
   else if (id==="6-3"){ seq.push(...buildExplainStage3()); }
-  else if (id==="6-4"){ seq.push(...buildExplainShortforms(TABLES.shortform1, "表8の5の8。段階4")); }
-  else if (id==="6-5"){ seq.push(...buildExplainShortforms(TABLES.shortform2, "表8の5の9。段階5")); }
+  else if (id==="6-4"){ seq.push(...buildExplainShortforms(TABLES.shortform1, "ひょう8の5の8。段階4")); }
+  else if (id==="6-5"){ seq.push(...buildExplainShortforms(TABLES.shortform2, "ひょう8の5の9。段階5")); }
   else if (id==="6-6"){ seq.push(...buildExplainLowerWordsigns()); }
   else if (id==="6-7"){ seq.push(...buildExplainLowerGroupsigns()); }
   else if (id==="7"){ seq.push(...buildExplainItalics()); }
@@ -945,7 +1056,6 @@ async function handleButton(btn){
   const id = btn.dataset.id;
   const name = btn.textContent.trim();
 
-  // 説明中に同じボタン → 停止（トグル）
   if (playingId === id){
     stopSpeech();
     setStatus(`${name} を停止`);
@@ -953,13 +1063,10 @@ async function handleButton(btn){
     return;
   }
 
-  // 別ボタンなら：いま鳴ってる音声を止めて、そのまま切り替え
   if (playingId && playingId !== id) stopSpeech();
 
-  // 選択状態を更新
   selectButton(btn);
 
-  // ★1回押したら即開始
   await startLesson(id, name);
 }
 
@@ -970,7 +1077,6 @@ document.querySelectorAll(".btn").forEach(btn=>{
   });
 });
 
-// ボタン以外を押したら停止＋選択解除
 document.addEventListener("click", async (e)=>{
   const isBtn = e.target?.classList?.contains("btn");
   if (isBtn) return;
@@ -989,6 +1095,3 @@ setStatus("待機中");
 </script>
 </body>
 </html>
-
-
-
