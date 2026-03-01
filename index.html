@@ -432,22 +432,22 @@ const TABLES = {
   ],
 
   lowerWordsigns: [
-    {word:"be", dots:[2]},
-    {word:"were", dots:[2,3,4,5,6]},
+    {word:"be", dots:[2,3]},
+    {word:"were", dots:[2,3,5,6]},
     {word:"his", dots:[2,3,6]},
-    {word:"was", dots:UEB.wasLower},
+    {word:"was", dots:[3,5,6]},
     {word:"enough", dots:[2,6]},
-    {word:"in", dots:UEB.inContraction}
+    {word:"in", dots:[3,5]}
   ],
   lowerGroupsigns: [
-    {part:"be", dots:[2], where:"語頭のみ"},
-    {part:"con", dots:[2,5], where:"語頭のみ"},
-    {part:"dis", dots:[2,5,6], where:"語頭のみ"},
+    {part:"be", dots:[2,3], where:"語とうのみ"},
+    {part:"con", dots:[2,5], where:"語とうのみ"},
+    {part:"dis", dots:[2,5,6], where:"語とうのみ"},
     {part:"ea", dots:[2], where:"語中のみ"},
-    {part:"bb", dots:[2], where:"語中のみ"},
+    {part:"bb", dots:[2,3], where:"語中のみ"},
     {part:"cc", dots:[2,5], where:"語中のみ"},
     {part:"ff", dots:[2,3,5], where:"語中のみ"},
-    {part:"gg", dots:[2,3,4,5,6], where:"語中のみ"},
+    {part:"gg", dots:[2,3,5,6], where:"語中のみ"},
   ],
 
   currencySymbols: [
@@ -935,4 +935,5 @@ setStatus("待機中");
 </body>
 
 </html>
+
 
