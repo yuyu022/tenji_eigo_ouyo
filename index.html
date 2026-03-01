@@ -409,7 +409,12 @@ const TABLES = {
   ],
 
   shortform1: [
-    {word:"about", cellsFrom:"ab"},
+/* =========================================================
+      {word:"about", cellsFrom:"ab"},
+========================================================= */
+    {word:"about", cells:[[1],[1,2]]},
+    {word:"about", dots:[5,6],[1,2]},
+
     {word:"according", cellsFrom:"ac"},
     {word:"after", cellsFrom:"af"},
     {word:"again", cellsFrom:"ag"},
@@ -989,4 +994,5 @@ setStatus("待機中");
 </script>
 </body>
 </html>
+
 
