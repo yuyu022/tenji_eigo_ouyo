@@ -774,7 +774,7 @@ function buildExplainStage1(){
   for (const it of TABLES.stage1c){
     seq.push(...explainCellAfterEnglish(it.word, [it.dots]));
   }
-  seq.push({lang:"ja", text:"注意。a、i、o以外で、単独のアルファベット1文字は、しゅくやく語と区別するために、前に1級記号符『外』を付けます。"});
+  seq.push({lang:"ja", text:"注意。a、i、oを除く、単独のアルファベットは、アルファベットしゅくやく語と区別するために、前に1級記号符の5と6の点を付けます。"});
   return seq;
 }
 
@@ -1095,3 +1095,4 @@ setStatus("待機中");
 </script>
 </body>
 </html>
+
